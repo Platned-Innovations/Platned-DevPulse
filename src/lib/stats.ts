@@ -526,6 +526,14 @@ export async function getDeveloperProfile(id: string, f: Filters) {
 
 /* ------------------------------ lookups ---------------------------- */
 
+/** Date from which every enabled repository has been synced (history before it is incomplete). */
+export async function getHistoryStart(): Promise<Date | null> {
+  const ctx = await loadCtx();
+  const coverage = (await (await getStore()).getSetting<Record<string, string>>("coverage")) ?? {};
+  const starts = [...ctx.repos.values()].filter((r) => r.enabled).map((r) => coverage[r.id]).filter(Boolean);
+  return starts.length ? new Date(starts.sort().at(-1)!) : null;
+}
+
 export async function getFilterOptions() {
   const ctx = await loadCtx();
   return {

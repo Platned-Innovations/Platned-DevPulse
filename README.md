@@ -140,5 +140,8 @@ Start the app and use **Admin > Overview & sync > Sync now**. The sync history s
 
 ### Troubleshooting Azure startup
 
+- **Check which package is running.** In the Log stream, the start line must read `> node start.cjs` (standalone bundle) or `> node scripts/start.cjs` (source tree). If it still says `> next start -H 0.0.0.0`, an **old** package is deployed: redeploy.
+- **Build the bundle on Linux** (the included GitHub workflow does this). A bundle built on Windows and zipped contains Windows-built files.
+- **"Quota exceeded" on the Web App** usually means a Free/Shared (F1/D1) plan: they have a daily CPU-minute limit and small disk, and a crash-looping container uses it up. Use Basic (B1) or higher; Always On, which the background sync needs, is not available on Free.
 - **`sh: next: not found` / 503 after "Site failed to startup"**: the root of the deployed package is not the `dist/` bundle (or an old bundle without `start.cjs` was deployed). Rebuild with `npm run build:standalone` and redeploy the `dist/` contents. Check the Log stream for `node start.cjs`.
 - **Starts, then 503**: check **Log stream**; the app logs `database ready` or the database error. Verify the database firewall allows the Web App's outbound IPs and `POSTGRES_URL` / `MONGODB_URI` is set as an application setting.

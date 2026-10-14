@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
 import { Sparkline } from "@/components/Charts";
-import { Avatar, Delta, EmptyState, fmt, PeriodControls, PlatformChips, PLATFORM_LABEL, RankMove, SetupNotice, Stat } from "@/components/ui";
+import { Avatar, CoverageNotice, Delta, EmptyState, fmt, PeriodControls, PlatformChips, PLATFORM_LABEL, RankMove, SetupNotice, Stat } from "@/components/ui";
 import { appName } from "@/lib/config";
 import { parseFilters, type SearchParams } from "@/lib/filters";
 import { safe } from "@/lib/safe";
-import { getFilterOptions, getLeaderboard } from "@/lib/stats";
+import { getFilterOptions, getHistoryStart, getLeaderboard } from "@/lib/stats";
 import { ACTIVITY_LABELS } from "@/lib/scoring";
 
 export default async function LeaderboardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const filters = parseFilters(await searchParams);
-  const res = await safe(async () => ({ board: await getLeaderboard(filters), opts: await getFilterOptions() }));
+  const res = await safe(async () => ({ board: await getLeaderboard(filters), opts: await getFilterOptions(), historyStart: await getHistoryStart() }));
   if (!res.ok) return <SetupNotice error={res.error} />;
-  const { board, opts } = res.data;
+  const { board, opts, historyStart } = res.data;
   const { rows, totals, previousTotals, range } = board;
   const podium = rows.slice(0, 3);
   const medals = ["🥇", "🥈", "🥉"];
@@ -28,6 +28,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
       </div>
 
       <PeriodControls base="/" filters={filters} range={range} />
+      <CoverageNotice range={range} historyStart={historyStart} />
       <div className="toolbar">
         <FilterBar
           platforms={opts.platforms.map((p) => ({ value: p, label: PLATFORM_LABEL[p] }))}

@@ -52,7 +52,8 @@ class IdentityResolver {
       const patch: Partial<Identity> = {};
       if (!a.externalId.startsWith("email:")) {
         if (a.avatarUrl && a.avatarUrl !== found.avatarUrl) patch.avatarUrl = a.avatarUrl;
-        if (a.username && a.username !== found.username) patch.username = a.username;
+        // Only trust names from full profiles (they carry an avatar); commit-derived ones may be stale.
+        if (a.avatarUrl && a.username && a.username !== found.username) patch.username = a.username;
       }
       if (a.email && !found.email) patch.email = a.email;
       if (Object.keys(patch).length) {
@@ -61,6 +62,33 @@ class IdentityResolver {
         this.index(found);
       }
       return found;
+    }
+
+    // A new email-only author (for example a commit made with a GitHub noreply address on Bitbucket)
+    // joins the developer that already owns that email or that GitHub account, rather than
+    // becoming a duplicate person.
+    if (a.externalId.startsWith("email:") && a.email) {
+      const email = a.email.toLowerCase();
+      const noreply = /^(\d+)\+[^@]+@users\.noreply\.github\.com$/i.exec(email);
+      const owner =
+        [...this.byKey.values()].find((i) => i.email?.toLowerCase() === email) ??
+        (noreply ? this.byKey.get(`github:${noreply[1]}`) : undefined);
+      if (owner) {
+        const linked: Identity = {
+          id: randomUUID(),
+          developerId: owner.developerId,
+          platform,
+          externalId: a.externalId,
+          username: a.username,
+          displayName: a.displayName,
+          avatarUrl: a.avatarUrl,
+          email: a.email,
+        };
+        await this.store.createIdentity(linked);
+        const persisted = (await this.store.findIdentity(platform, a.externalId)) ?? linked;
+        this.index(persisted);
+        return persisted;
+      }
     }
 
     const developer: Developer = {
@@ -126,6 +154,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     if (providers.length === 0) run.errors.push("No platform configured (set GitHub and/or Bitbucket credentials).");
     const lookbackDays = opts.lookbackDays ?? syncConfig().lookbackDays;
     const resolver = new IdentityResolver(store, await store.listIdentities());
+    const coverage = (await store.getSetting<Record<string, string>>("coverage")) ?? {};
 
     for (const provider of providers) {
       let remote: RemoteRepo[];
@@ -179,6 +208,8 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           }
           await store.upsertActivities(activities);
           await store.markRepositorySynced(repo.id, startedAt);
+          // Remember how far back this repository's history is complete.
+          if ((!repo.lastSyncedAt || opts.full) && (!coverage[repo.id] || since.toISOString() < coverage[repo.id])) coverage[repo.id] = since.toISOString();
           run.activities += activities.length;
           run.repos += 1;
         } catch (e) {
@@ -187,6 +218,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         await store.updateSyncRun(run.id, { repos: run.repos, activities: run.activities });
       }
     }
+    await store.setSetting("coverage", coverage);
     run.status = run.errors.length === 0 ? "success" : run.repos > 0 ? "partial" : "failed";
   } catch (e) {
     run.errors.push((e as Error).message);
