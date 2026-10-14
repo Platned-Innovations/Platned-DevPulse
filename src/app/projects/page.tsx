@@ -15,7 +15,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   const { data, opts, historyStart } = res.data;
 
   return (
-    <>
+    <div className="fill">
       <div className="page-head">
         <div>
           <h1>Project rankings</h1>
@@ -31,7 +31,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       {data.rows.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="card">
+        <div className="card grow">
           <div className="table-wrap">
             <table>
               <thead>
@@ -69,7 +69,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
                       )}{" "}
                       {r.topContributor && <span className="faint">({Math.round(r.topContributor.share * 100)}%)</span>}
                     </td>
-                    <td className="muted">{r.lastActivity ? ago(r.lastActivity) : "–"}</td>
+                    <td className="muted nowrap">{r.lastActivity ? ago(r.lastActivity) : "–"}</td>
                     <td><Sparkline data={r.series} /></td>
                   </tr>
                 ))}
@@ -78,6 +78,6 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

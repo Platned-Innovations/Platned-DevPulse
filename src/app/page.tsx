@@ -19,7 +19,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
   const withQuery = (id: string) => `/developers/${id}${filters.period === "month" && !filters.offset ? "" : `?period=${filters.period}&offset=${filters.offset}`}`;
 
   return (
-    <>
+    <div className="fill">
       <div className="page-head">
         <div>
           <h1>{appName()} Leaderboard</h1>
@@ -57,16 +57,16 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
                   <Avatar name={r.name} src={r.avatarUrl} size={place === 0 ? "xl" : "lg"} />
                   <Link href={withQuery(r.developerId)}><b>{r.name}</b></Link>
                   <span className="pts num">{fmt(r.points)} pts</span>
-                  <span className="muted num" style={{ fontSize: 13 }}>
+                  <span className="muted num pod-extra" style={{ fontSize: 13 }}>
                     {r.counts.commit} commits · {r.counts.pr_merged} merged · {r.counts.review} reviews
                   </span>
-                  <PlatformChips platforms={r.platforms} />
+                  <span className="pod-extra"><PlatformChips platforms={r.platforms} /></span>
                 </div>
               );
             })}
           </div>
 
-          <div className="card">
+          <div className="card grow">
             <div className="table-wrap">
               <table>
                 <thead>
@@ -115,6 +115,6 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
