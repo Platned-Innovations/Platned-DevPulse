@@ -5,7 +5,7 @@ import type { Filters } from "@/lib/stats";
 import type { Platform } from "@/lib/types";
 import type { Range } from "@/lib/periods";
 
-export function Avatar({ name, src, size }: { name: string; src: string | null; size?: "lg" | "xl" }) {
+export function Avatar({ name, src, size }: { name: string; src: string | null; size?: "sm" | "lg" | "xl" }) {
   const cls = `avatar${size ? " " + size : ""}`;
   const initials = name
     .split(/\s+/)

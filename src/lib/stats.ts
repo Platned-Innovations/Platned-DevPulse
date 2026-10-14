@@ -1,4 +1,5 @@
 import { getStore } from "./db";
+import { effectiveAvatar } from "./avatar";
 import { configuredPlatforms } from "./config";
 import { dayKey, previousRange, resolveRange, type PeriodKey, type Range } from "./periods";
 import { DEFAULT_WEIGHTS } from "./scoring";
@@ -53,7 +54,7 @@ async function loadCtx(): Promise<Ctx> {
     getWeights(),
   ]);
   const value: Ctx = {
-    developers: new Map(devs.map((d) => [d.id, d])),
+    developers: new Map(devs.map((d) => [d.id, { ...d, avatarUrl: effectiveAvatar(d, idents.filter((i) => i.developerId === d.id)) }])),
     identities: new Map(idents.map((i) => [i.id, i])),
     repos: new Map(repos.map((r) => [r.id, r])),
     weights,

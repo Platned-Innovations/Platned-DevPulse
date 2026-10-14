@@ -21,6 +21,8 @@ export interface Developer {
   avatarUrl: string | null;
   /** Hidden developers (bots, alumni) are excluded from every ranking. */
   hidden: boolean;
+  /** Linked account whose avatar represents this developer (admin choice). */
+  primaryIdentityId: string | null;
   createdAt: Date;
 }
 

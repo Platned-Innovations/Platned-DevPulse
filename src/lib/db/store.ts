@@ -15,7 +15,7 @@ export interface Store {
 
   listDevelopers(): Promise<Developer[]>;
   createDeveloper(d: Developer): Promise<void>;
-  updateDeveloper(id: string, patch: Partial<Pick<Developer, "displayName" | "avatarUrl" | "hidden">>): Promise<void>;
+  updateDeveloper(id: string, patch: Partial<Pick<Developer, "displayName" | "avatarUrl" | "hidden" | "primaryIdentityId">>): Promise<void>;
   deleteDeveloper(id: string): Promise<void>;
 
   listIdentities(): Promise<Identity[]>;

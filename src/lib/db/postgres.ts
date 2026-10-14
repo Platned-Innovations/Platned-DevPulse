@@ -8,8 +8,10 @@ CREATE TABLE IF NOT EXISTS developers (
   display_name TEXT NOT NULL,
   avatar_url TEXT,
   hidden BOOLEAN NOT NULL DEFAULT FALSE,
+  primary_identity_id TEXT,
   created_at TIMESTAMPTZ NOT NULL
 );
+ALTER TABLE developers ADD COLUMN IF NOT EXISTS primary_identity_id TEXT;
 CREATE TABLE IF NOT EXISTS identities (
   id TEXT PRIMARY KEY,
   developer_id TEXT NOT NULL,
@@ -72,6 +74,7 @@ const dev = (r: any): Developer => ({
   displayName: r.display_name,
   avatarUrl: r.avatar_url,
   hidden: r.hidden,
+  primaryIdentityId: r.primary_identity_id ?? null,
   createdAt: r.created_at,
 });
 const ident = (r: any): Identity => ({
@@ -126,6 +129,7 @@ const COLS: Record<string, string> = {
   displayName: "display_name",
   avatarUrl: "avatar_url",
   hidden: "hidden",
+  primaryIdentityId: "primary_identity_id",
   username: "username",
   email: "email",
   finishedAt: "finished_at",
@@ -163,8 +167,8 @@ export class PostgresStore implements Store {
   }
   async createDeveloper(d: Developer) {
     await this.pool.query(
-      "INSERT INTO developers (id, display_name, avatar_url, hidden, created_at) VALUES ($1,$2,$3,$4,$5)",
-      [d.id, d.displayName, d.avatarUrl, d.hidden, d.createdAt],
+      "INSERT INTO developers (id, display_name, avatar_url, hidden, primary_identity_id, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+      [d.id, d.displayName, d.avatarUrl, d.hidden, d.primaryIdentityId, d.createdAt],
     );
   }
   updateDeveloper(id: string, p: Partial<Developer>) {

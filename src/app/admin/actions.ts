@@ -81,6 +81,20 @@ export async function unlinkAction(form: FormData) {
   back("developers", "Account unlinked into its own developer.");
 }
 
+/** Chooses which linked account's picture represents the developer. */
+export async function setPrimaryAction(form: FormData) {
+  await requireAdmin();
+  const store = await getStore();
+  const developerId = String(form.get("developer"));
+  const identityId = String(form.get("identity"));
+  const owns = (await store.listIdentities()).some((i) => i.id === identityId && i.developerId === developerId);
+  if (!owns) back("developers", "That account is not linked to this developer.", true);
+  await store.updateDeveloper(developerId, { primaryIdentityId: identityId });
+  clearStatsCache();
+  revalidatePath("/", "layout");
+  back("developers", "Primary account updated.");
+}
+
 export async function setHiddenAction(form: FormData) {
   await requireAdmin();
   const store = await getStore();

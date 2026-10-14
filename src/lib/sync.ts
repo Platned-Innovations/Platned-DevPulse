@@ -68,6 +68,7 @@ class IdentityResolver {
       displayName: a.displayName,
       avatarUrl: a.avatarUrl,
       hidden: false,
+      primaryIdentityId: null,
       createdAt: new Date(),
     };
     await this.store.createDeveloper(developer);

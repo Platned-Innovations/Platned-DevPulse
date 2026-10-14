@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "./db";
+import { effectiveAvatar } from "./avatar";
 import { clearStatsCache } from "./stats";
 import type { Developer, Identity } from "./types";
 
@@ -23,7 +24,7 @@ export async function listDevelopersWithIdentities(): Promise<DeveloperWithIdent
   const by = new Map<string, Identity[]>();
   for (const i of idents) (by.get(i.developerId) ?? by.set(i.developerId, []).get(i.developerId)!).push(i);
   return devs
-    .map((d) => ({ developer: d, identities: by.get(d.id) ?? [] }))
+    .map((d) => ({ developer: { ...d, avatarUrl: effectiveAvatar(d, by.get(d.id) ?? []) }, identities: by.get(d.id) ?? [] }))
     .filter((x) => x.identities.length > 0)
     .sort((a, b) => a.developer.displayName.localeCompare(b.developer.displayName));
 }
@@ -40,10 +41,6 @@ export async function mergeDevelopers(targetId: string, sourceId: string) {
   const target = devs.find((d) => d.id === targetId);
   if (!target || !devs.some((d) => d.id === sourceId)) throw new Error("Developer not found.");
   for (const i of idents.filter((x) => x.developerId === sourceId)) await store.setIdentityDeveloper(i.id, targetId);
-  if (!target.avatarUrl) {
-    const withAvatar = idents.find((i) => i.developerId === sourceId && i.avatarUrl);
-    if (withAvatar) await store.updateDeveloper(targetId, { avatarUrl: withAvatar.avatarUrl });
-  }
   await store.deleteDeveloper(sourceId);
   clearStatsCache();
 }
@@ -55,9 +52,11 @@ export async function unlinkIdentity(identityId: string) {
   const ident = idents.find((i) => i.id === identityId);
   if (!ident) throw new Error("Account not found.");
   if (idents.filter((i) => i.developerId === ident.developerId).length < 2) throw new Error("A developer needs at least one account.");
-  const dev: Developer = { id: randomUUID(), displayName: ident.displayName, avatarUrl: ident.avatarUrl, hidden: false, createdAt: new Date() };
+  const dev: Developer = { id: randomUUID(), displayName: ident.displayName, avatarUrl: ident.avatarUrl, hidden: false, primaryIdentityId: null, createdAt: new Date() };
   await store.createDeveloper(dev);
   await store.setIdentityDeveloper(ident.id, dev.id);
+  const oldDev = (await store.listDevelopers()).find((d) => d.id === ident.developerId);
+  if (oldDev?.primaryIdentityId === ident.id) await store.updateDeveloper(oldDev.id, { primaryIdentityId: null });
   clearStatsCache();
 }
 

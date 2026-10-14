@@ -10,7 +10,7 @@ import { ACTIVITY_LABELS } from "@/lib/scoring";
 import { getWeights } from "@/lib/stats";
 import { isSyncing } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
-import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setHiddenAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
+import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setHiddenAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
 
 export const metadata = { title: "Admin" };
 
@@ -212,7 +212,18 @@ async function Developers() {
                   <td className="wrap-cell">
                     {identities.map((i) => (
                       <div key={i.id} className="row" style={{ gap: 8, marginBottom: 4 }}>
-                        <span className="chip"><span className={`dot ${i.platform}`} /> {PLATFORM_LABEL[i.platform]} · {i.username}{i.email ? ` · ${i.email}` : ""}</span>
+                        <span className="chip">
+                          {i.avatarUrl && <Avatar name={i.displayName} src={i.avatarUrl} size="sm" />}
+                          <span className={`dot ${i.platform}`} /> {PLATFORM_LABEL[i.platform]} · {i.username}{i.email ? ` · ${i.email}` : ""}
+                          {identities.length > 1 && d.primaryIdentityId === i.id && <b title="Its picture is used on the leaderboard"> ★ Primary</b>}
+                        </span>
+                        {identities.length > 1 && d.primaryIdentityId !== i.id && (
+                          <form action={setPrimaryAction}>
+                            <input type="hidden" name="developer" value={d.id} />
+                            <input type="hidden" name="identity" value={i.id} />
+                            <button title="Use this account's picture for the developer">Make primary</button>
+                          </form>
+                        )}
                         {identities.length > 1 && (
                           <form action={unlinkAction}>
                             <input type="hidden" name="identity" value={i.id} />

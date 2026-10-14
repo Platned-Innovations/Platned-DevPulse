@@ -45,7 +45,7 @@ export class MongoStore implements Store {
   }
 
   async listDevelopers() {
-    return (await this.col("developers").find().toArray()).map((d) => out<Developer>(d));
+    return (await this.col("developers").find().toArray()).map((d) => ({ ...out<Developer>(d), primaryIdentityId: d.primaryIdentityId ?? null }));
   }
   async createDeveloper(d: Developer) {
     await this.col("developers").insertOne(into(d));

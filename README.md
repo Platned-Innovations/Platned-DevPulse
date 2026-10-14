@@ -12,7 +12,7 @@ The app is branded **`<COMPANY_NAME> DevPulse`** (set `COMPANY_NAME`; without it
 - **Developer profiles**: 12-month heatmap, project and platform breakdown, lifetime totals, achievements and milestones.
 - **Team insights**: hall of fame (MVP, Commit King, Merge Master, Review Champion, Heavy Lifter, Streak Keeper, Explorer, Rising Star, Bridge Builder), trending projects, weekday pattern, review-per-PR ratio, knowledge-concentration warnings, GitHub vs Bitbucket split.
 - **One or both platforms**: configure GitHub, Bitbucket, or both. With both, each developer's stats are summed.
-- **Identity merging (admin)**: the same person usually has different IDs on each platform. Admin merges them (suggestions are offered by matching email, username or name); stats from all linked accounts then show as one record, retroactively and on every future sync. Accounts can be unlinked again.
+- **Identity merging (admin)**: the same person usually has different IDs on each platform. Admin merges them (suggestions are offered by matching email, username or name); stats from all linked accounts then show as one record, retroactively and on every future sync. Accounts can be unlinked again. The admin can also mark one linked account as **primary**; its picture is used on the leaderboard.
 - **Admin-only login**: no end-user accounts. The leaderboard is open; the admin area manages sync, merging, hiding bots/alumni, enabling repositories and the scoring weights.
 - **Automatic sync**: a background schedule plus a manual "Sync now" in the admin area.
 
