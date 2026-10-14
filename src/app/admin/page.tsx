@@ -32,7 +32,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const syncing = isSyncing();
 
   return (
-    <div className={tab === "repos" || tab === "developers" ? "fill" : undefined}>
+    <div className={tab === "repos" ? "fill" : undefined}>
       <div className="page-head">
         <div>
           <h1>{appName()} admin</h1>
@@ -228,9 +228,9 @@ async function Developers() {
       )}
       </div>
 
-      <div className="card grow">
+      <div className="card">
         <h2>All developers ({devs.length})</h2>
-        <div className="table-wrap">
+        <div className="table-wrap open">
           <table>
             <thead><tr><th>Developer</th><th>Linked accounts</th><th>Visibility</th></tr></thead>
             <tbody>
