@@ -10,4 +10,4 @@ WORKDIR /app
 ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=8080
 COPY --from=build /app/dist ./
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["node", "start.cjs"]

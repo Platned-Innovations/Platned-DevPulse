@@ -59,10 +59,10 @@ Tables, collections and indexes are created automatically on first start for bot
 
 1. **Create** a Web App (Linux, Node 22 LTS). Turn **Always On** on (the background sync runs in-process) and keep **one instance** (extra instances would each sync; if you scale out, set `SYNC_INTERVAL_MINUTES=0` on the extras: syncing is idempotent, so it is only wasteful).
 2. **Database**: Azure Database for PostgreSQL (use `?sslmode=require`) or Azure Cosmos DB for MongoDB / MongoDB Atlas. For Cosmos DB RU accounts add `retrywrites=false` to the URI.
-3. **App settings** (Configuration > Application settings): everything from `.env.example` that applies, plus `HOSTNAME=0.0.0.0`. Store tokens and passwords as Key Vault references where possible.
-4. **Startup command**: `node server.js`
+3. **App settings** (Configuration > Application settings): everything from `.env.example` that applies. Also set `SCM_DO_BUILD_DURING_DEPLOYMENT=false` (the package is already built). `PORT` and `HOSTNAME` need no setting: the bundled starter binds to all interfaces and defaults to Azure's port 8080.
+4. **Startup command**: leave empty or use `npm start` (both run `node start.cjs`). Do **not** deploy the repository root with `next start`; deploy the `dist/` bundle below.
 5. **Health check** path: `/api/health` (use `/api/health?deep=1` to also verify the database).
-6. **Deploy**: the included workflow [.github/workflows/azure-webapp.yml](.github/workflows/azure-webapp.yml) builds the standalone bundle and deploys it (secret `AZURE_WEBAPP_PUBLISH_PROFILE`, variable `AZURE_WEBAPP_NAME`). Manually: `npm run build:standalone`, then zip-deploy the `dist/` folder.
+6. **Deploy**: the included workflow [.github/workflows/azure-webapp.yml](.github/workflows/azure-webapp.yml) builds the standalone bundle and deploys it (secret `AZURE_WEBAPP_PUBLISH_PROFILE`, variable `AZURE_WEBAPP_NAME`). Manually: `npm run build:standalone`, then zip-deploy the **contents** of the `dist/` folder (so `package.json` and `start.cjs` sit at the root of the zip).
    Alternative: a container image from the included `Dockerfile` (listens on `PORT`, default 8080; set `WEBSITES_PORT=8080`).
 7. If you serve the app through a custom domain or proxy that rewrites the Host header, set `ALLOWED_ORIGINS=app.example.com`.
 
@@ -137,3 +137,8 @@ Start the app and use **Admin > Overview & sync > Sync now**. The sync history s
 - GitHub commit line counts are not fetched (it would need one API call per commit); "lines merged" comes from merged pull requests on both platforms.
 - Bitbucket has no explicit merge timestamp, so a merged PR's last-updated time is used.
 - Anyone who can reach the URL can read the leaderboard (including names and activity). Restrict access at the Azure level (for example App Service Authentication or IP rules) if that is not acceptable.
+
+### Troubleshooting Azure startup
+
+- **`sh: next: not found` / 503 after "Site failed to startup"**: the root of the deployed package is not the `dist/` bundle (or an old bundle without `start.cjs` was deployed). Rebuild with `npm run build:standalone` and redeploy the `dist/` contents. Check the Log stream for `node start.cjs`.
+- **Starts, then 503**: check **Log stream**; the app logs `database ready` or the database error. Verify the database firewall allows the Web App's outbound IPs and `POSTGRES_URL` / `MONGODB_URI` is set as an application setting.
