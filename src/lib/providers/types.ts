@@ -37,7 +37,8 @@ export interface RemoteActivity {
 
 export interface Provider {
   readonly platform: Platform;
-  listRepos(): Promise<RemoteRepo[]>;
+  /** `branches: false` skips the per-repository branch lookups (one API call each). */
+  listRepos(opts?: { branches?: boolean }): Promise<RemoteRepo[]>;
   /** Activities that happened at or after `since`. Must be safe to call repeatedly (ids are deterministic). */
   fetchActivities(repo: RemoteRepo, since: Date, branch: string | null, log?: (message: string) => void): Promise<RemoteActivity[]>;
 }

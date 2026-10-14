@@ -30,4 +30,9 @@ writeFileSync(
   "dist/start.cjs",
   `process.env.HOSTNAME = "0.0.0.0";\nprocess.env.PORT = process.env.PORT || "8080";\nrequire("./server.js");\n`,
 );
+// Kudu reads this from the package root: skip the server-side npm install/build (it is already built).
+// On small plans that install is the single biggest CPU and disk cost.
+writeFileSync("dist/.deployment", "[config]
+SCM_DO_BUILD_DURING_DEPLOYMENT=false
+");
 console.log("Standalone build ready in ./dist  ->  cd dist && npm start");

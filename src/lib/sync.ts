@@ -201,13 +201,19 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     const resolver = new IdentityResolver(store, await store.listIdentities());
     const coverage = (await store.getSetting<Record<string, string>>("coverage")) ?? {};
     const rereads: { reason: string; since: Date }[] = [];
+    // Branch lists cost one API call per repository; automatic runs refresh them at most twice a day.
+    const knownRepos = new Map((await store.listRepositories()).map((r) => [r.id, r]));
+    const lastBranchRefresh = Date.parse((await store.getSetting<string>("branchesRefreshedAt")) ?? "") || 0;
+    const refreshBranches =
+      trigger === "manual" || !!opts.discoverOnly || Date.now() - lastBranchRefresh > 12 * 3600_000;
 
     for (const provider of providers) {
       let remote: RemoteRepo[];
       const pname = provider.platform === "github" ? "GitHub" : "Bitbucket";
       try {
         setNow(`${pname}: listing repositories and branches…`);
-        remote = await provider.listRepos();
+        remote = await provider.listRepos({ branches: refreshBranches });
+        if (refreshBranches) await store.setSetting("branchesRefreshedAt", new Date().toISOString()); // saved now, so a stopped run still counts
         logEvent(`${pname}: found ${remote.length} repositories`);
       } catch (e) {
         if (e instanceof SyncCancelled) throw e;
@@ -220,6 +226,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           id: `${provider.platform}:${r.externalId}`,
           platform: provider.platform,
           ...r,
+          branches: refreshBranches ? r.branches : (knownRepos.get(`${provider.platform}:${r.externalId}`)?.branches ?? r.branches),
           trackedBranch: null,
           syncedBranch: null,
           enabled: true,

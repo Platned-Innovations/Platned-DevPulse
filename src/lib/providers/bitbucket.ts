@@ -68,7 +68,7 @@ export class BitbucketProvider implements Provider {
     return wanted.some((p) => (p.includes("/") ? p === `${ws}/${key}` : p === key));
   }
 
-  async listRepos(): Promise<RemoteRepo[]> {
+  async listRepos(opts: { branches?: boolean } = {}): Promise<RemoteRepo[]> {
     const out: RemoteRepo[] = [];
     for (const ws of this.cfg.workspaces) {
       const repos = await this.paged(`${this.cfg.apiUrl}/repositories/${encodeURIComponent(ws)}?pagelen=100`);
@@ -91,7 +91,7 @@ export class BitbucketProvider implements Provider {
       }
     }
     // Branch names let the admin (and the auto-pick) choose which branch to read.
-    await mapLimit(out, 6, async (r) => {
+    if (opts.branches !== false) await mapLimit(out, 6, async (r) => {
       try {
         r.branches = (await this.paged(`${this.cfg.apiUrl}/repositories/${r.fullName}/refs/branches?pagelen=100`)).map((b) => b.name as string);
       } catch {
