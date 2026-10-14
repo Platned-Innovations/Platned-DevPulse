@@ -6,10 +6,9 @@ const g = globalThis as unknown as { __devpulseBooted?: boolean };
 /**
  * Runs once at server start:
  *  1. connects and creates/updates the schema (idempotent migration),
- *  2. if the database holds no activity yet (and AUTO_SEED is not "false"):
- *     - platform credentials configured -> kicks off the first real sync in the background,
- *     - nothing configured              -> loads fictional demo data so the app is not blank.
- * Real credentials never trigger demo data, so production is never polluted with fakes.
+ *  2. if the database holds no activity yet (and AUTO_SEED is not "false") and GitHub/Bitbucket
+ *     credentials are configured, kicks off the first real sync in the background.
+ * No fake data is ever loaded.
  */
 export async function bootstrap(): Promise<{ firstSync: boolean }> {
   if (g.__devpulseBooted || !dbConfig()) return { firstSync: false };
@@ -25,9 +24,6 @@ export async function bootstrap(): Promise<{ firstSync: boolean }> {
       void runSync("schedule").catch((e) => console.error("[devpulse] first sync failed:", e.message));
       return { firstSync: true };
     }
-    const { seedDemoData } = await import("./seed");
-    const r = await seedDemoData(store);
-    console.log(`[devpulse] empty database and no platform configured: loaded demo data (${r.activities} activities)`);
   } catch (e) {
     g.__devpulseBooted = false;
     console.error("[devpulse] startup bootstrap failed:", (e as Error).message);
