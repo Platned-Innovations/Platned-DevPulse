@@ -175,34 +175,35 @@ async function Developers() {
 
   return (
     <>
-      <div className="card">
+      <div className={suggestions.length > 0 ? "grid cols-2" : undefined} style={{ alignItems: "stretch" }}>
+      <div className="card" style={{ margin: 0 }}>
         <h2>Merge developers</h2>
         <p className="muted" style={{ marginTop: -6 }}>
           The same person often has different IDs on GitHub and Bitbucket. Merging combines their accounts into one record: from now on, past and future stats from every linked account are summed under one name.
         </p>
-        <form action={mergeAction} className="row">
-          <label className="row" style={{ gap: 6 }}>
-            <span>Merge</span>
-            <select name="source" required defaultValue="">
+        <form action={mergeAction} style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
+            <span className="muted">Merge this developer…</span>
+            <select name="source" required defaultValue="" style={{ width: "100%", minWidth: 0 }}>
               <option value="" disabled>Select developer…</option>
               {options}
             </select>
           </label>
-          <label className="row" style={{ gap: 6 }}>
-            <span>into</span>
-            <select name="target" required defaultValue="">
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
+            <span className="muted">…into this record (kept)</span>
+            <select name="target" required defaultValue="" style={{ width: "100%", minWidth: 0 }}>
               <option value="" disabled>Select the record to keep…</option>
               {options}
             </select>
           </label>
-          <button className="primary">Merge</button>
+          <div><button className="primary">Merge</button></div>
         </form>
       </div>
 
       {suggestions.length > 0 && (
-        <div className="card">
+        <div className="card" style={{ margin: 0 }}>
           <h2>Suggested merges</h2>
-          <ul className="list" style={{ maxHeight: 150, overflow: "auto" }}>
+          <ul className="list" style={{ maxHeight: 170, overflow: "auto" }}>
             {suggestions.map((s) => (
               <li key={`${s.a.developer.id}${s.b.developer.id}`}>
                 <span>
@@ -219,6 +220,7 @@ async function Developers() {
           </ul>
         </div>
       )}
+      </div>
 
       <div className="card grow">
         <h2>All developers ({devs.length})</h2>
