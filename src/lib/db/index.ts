@@ -28,8 +28,8 @@ export async function getStore(): Promise<Store> {
   if (g.__devpulseStore) {
     const existing = await g.__devpulseStore.catch(() => null);
     if (existing instanceof Cls) return existing;
+    // Not closed: a running sync may still hold it. Its idle connections time out on their own.
     g.__devpulseStore = undefined;
-    await existing?.close().catch(() => undefined);
   }
 
   const p = (async () => {

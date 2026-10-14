@@ -8,13 +8,14 @@ export interface LogEntry {
 }
 
 const MAX = 600;
-const g = globalThis as unknown as { __devpulseLog?: { seq: number; entries: LogEntry[]; now: string } };
-const state = () => (g.__devpulseLog ??= { seq: 0, entries: [], now: "" });
+const g = globalThis as unknown as { __devpulseLog?: { seq: number; epoch: number; entries: LogEntry[]; now: string } };
+const state = () => (g.__devpulseLog ??= { seq: 0, epoch: 0, entries: [], now: "" });
 
 export function resetLog() {
   const s = state();
   s.entries = [];
   s.now = "";
+  s.epoch++;
 }
 
 export function logEvent(text: string, level: LogEntry["level"] = "info") {
@@ -30,5 +31,5 @@ export function setNow(text: string) {
 
 export function readLog(after = 0) {
   const s = state();
-  return { seq: s.seq, now: s.now, entries: s.entries.filter((e) => e.seq > after) };
+  return { seq: s.seq, epoch: s.epoch, now: s.now, entries: s.entries.filter((e) => e.seq > after) };
 }

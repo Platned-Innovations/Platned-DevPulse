@@ -9,6 +9,14 @@ interface Entry {
   text: string;
 }
 
+interface Reply {
+  seq: number;
+  epoch: number;
+  now: string;
+  running: boolean;
+  entries: Entry[];
+}
+
 const COLORS = { info: "var(--text-2)", ok: "var(--good)", warn: "var(--gold)", error: "var(--bad)" } as const;
 
 /** Live view of the running sync: a "now" line plus a rolling log. Polls only while a sync is active. */
@@ -16,26 +24,33 @@ export function SyncLog({ active }: { active: boolean }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [now, setNow] = useState("");
   const [running, setRunning] = useState(active);
-  const seq = useRef(0);
+  const lastSeq = useRef(0);
+  const epoch = useRef(-1);
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
   useEffect(() => {
-    let stopped = false;
+    let stopped = false; // per effect run, so a second (dev double-mounted) loop cannot double up
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       let again = 3000;
       try {
-        const res = await fetch(`/api/sync/log?after=${seq.current}`, { cache: "no-store" });
-        if (res.ok) {
-          const d: { seq: number; now: string; running: boolean; entries: Entry[] } = await res.json();
-          if (d.seq < seq.current) {
-            // A new run reset the log: start over.
-            seq.current = 0;
-            setEntries([]);
+        const res = await fetch(`/api/sync/log?after=${epoch.current < 0 ? 0 : lastSeq.current}`, { cache: "no-store" });
+        if (res.ok && !stopped) {
+          const d: Reply = await res.json();
+          if (d.epoch !== epoch.current) {
+            // A new run started (or first load): replace everything.
+            // Sequence numbers only grow, so "after lastSeq" already contains the whole new run.
+            epoch.current = d.epoch;
+            lastSeq.current = d.entries.at(-1)?.seq ?? d.seq;
+            setEntries(d.entries.slice(-400));
           } else if (d.entries.length) {
-            seq.current = d.seq;
-            setEntries((prev) => [...prev, ...d.entries].slice(-400));
+            // Only append entries newer than what is already shown (guards against overlapping polls).
+            const fresh = d.entries.filter((e) => e.seq > lastSeq.current);
+            if (fresh.length) {
+              lastSeq.current = fresh[fresh.length - 1].seq;
+              setEntries((prev) => [...prev, ...fresh.filter((e) => e.seq > (prev.at(-1)?.seq ?? 0))].slice(-400));
+            }
           }
           setNow(d.now);
           setRunning(d.running);

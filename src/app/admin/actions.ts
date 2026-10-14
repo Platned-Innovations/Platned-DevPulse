@@ -9,7 +9,7 @@ import { mergeDevelopers, unlinkIdentity } from "@/lib/identities";
 import { DEFAULT_WEIGHTS } from "@/lib/scoring";
 import { clearStatsCache } from "@/lib/stats";
 import { requestCancel } from "@/lib/cancel";
-import { isSyncing, runSync, type SyncOptions } from "@/lib/sync";
+import { forceStopSync, isSyncing, runSync, type SyncOptions } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
 
 /** "all" = everything (a 100-year window); otherwise a whole number of days. */
@@ -58,7 +58,13 @@ export async function stopSyncAction() {
   await requireAdmin();
   if (isSyncing()) {
     requestCancel();
-    back("overview", "Stopping… the sync halts at its next step.");
+    // Normally it halts within a moment; wait a few seconds for it to wind down.
+    for (let i = 0; i < 30 && isSyncing(); i++) await new Promise((r) => setTimeout(r, 200));
+    if (isSyncing()) {
+      await forceStopSync(); // it did not react: release it so a new sync can start
+      back("overview", "The sync did not respond and was force-stopped.");
+    }
+    back("overview", "Sync stopped.");
   }
   const store = await getStore();
   let closed = 0;

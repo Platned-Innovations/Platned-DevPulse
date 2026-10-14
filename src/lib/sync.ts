@@ -9,7 +9,7 @@ import type { Provider, RemoteActor, RemoteRepo } from "./providers/types";
 import type { Activity, Developer, Identity, Platform, Repository, SyncRun } from "./types";
 
 const DAY = 86_400_000;
-const g = globalThis as unknown as { __devpulseSyncing?: boolean };
+const g = globalThis as unknown as { __devpulseSyncing?: boolean; __devpulseRunId?: string | null };
 
 export function isSyncing() {
   return !!g.__devpulseSyncing;
@@ -122,6 +122,19 @@ class IdentityResolver {
   }
 }
 
+/** Last resort for a sync that does not react to Stop: release the lock and close its history row. */
+export async function forceStopSync(): Promise<void> {
+  g.__devpulseRunId = null;
+  g.__devpulseSyncing = false;
+  const store = await getStore();
+  for (const r of await store.listSyncRuns(10)) {
+    if (r.status === "running") {
+      await store.updateSyncRun(r.id, { status: "cancelled", finishedAt: new Date(), errors: [...r.errors, "Force-stopped by admin"] });
+    }
+  }
+  clearStatsCache();
+}
+
 export interface SyncOptions {
   /** Only sync these repositories (ids like "github:123"). */
   repoIds?: string[];
@@ -149,15 +162,21 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
   g.__devpulseSyncing = true;
   resetCancel();
 
-  // Runs left "running" by a crashed process can never finish.
-  for (const r of await store.listSyncRuns(5)) {
-    if (r.status === "running") {
-      await store.updateSyncRun(r.id, { status: "failed", finishedAt: new Date(), errors: [...r.errors, "Interrupted (process restarted)"] });
+  let run: SyncRun;
+  try {
+    // Runs left "running" by a crashed process can never finish.
+    for (const r of await store.listSyncRuns(5)) {
+      if (r.status === "running") {
+        await store.updateSyncRun(r.id, { status: "failed", finishedAt: new Date(), errors: [...r.errors, "Interrupted (process restarted)"] });
+      }
     }
+    run = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
+    await store.createSyncRun(run);
+    g.__devpulseRunId = run.id;
+  } catch (e) {
+    g.__devpulseSyncing = false; // could not even start: do not leave the lock held
+    throw e;
   }
-
-  const run: SyncRun = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
-  await store.createSyncRun(run);
   resetLog();
   logEvent(`Sync started: ${run.label} (${trigger === "schedule" ? "automatic" : "manual"})`);
   setNow("Starting…");
@@ -288,9 +307,18 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     resetCancel();
     setNow("");
     logEvent(`Sync ${run.status}: ${run.repos} repositories, ${run.activities} activities${run.errors.length ? `, ${run.errors.length} problem(s)` : ""}`, run.status === "success" ? "ok" : run.status === "failed" ? "error" : "warn");
-    await store.updateSyncRun(run.id, { status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
+    try {
+      await store.updateSyncRun(run.id, { status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
+    } catch (e) {
+      console.error("[devpulse] could not save the sync result:", (e as Error).message);
+    }
     clearStatsCache();
-    g.__devpulseSyncing = false;
+    // Always released, otherwise Stop/Sync would stay blocked until restart. A force-stopped (zombie) run
+    // must not release the lock of a newer run, hence the id check.
+    if (g.__devpulseRunId === run.id) {
+      g.__devpulseRunId = null;
+      g.__devpulseSyncing = false;
+    }
   }
   return run;
 }
