@@ -8,13 +8,10 @@ const NEXT: Record<Choice, Choice> = { system: "light", light: "dark", dark: "sy
 const LABEL: Record<Choice, string> = { system: "Auto", light: "Light", dark: "Dark" };
 const ICON: Record<Choice, string> = { system: "◐", light: "☀", dark: "☾" };
 
+/** The server renders the saved choice into <html data-theme>; read it from there. */
 function read(): Choice {
-  try {
-    const v = localStorage.getItem(KEY);
-    return v === "light" || v === "dark" ? v : "system";
-  } catch {
-    return "system";
-  }
+  const v = document.documentElement.getAttribute("data-theme");
+  return v === "light" || v === "dark" ? v : "system";
 }
 
 function apply(choice: Choice) {
@@ -23,7 +20,12 @@ function apply(choice: Choice) {
   else root.setAttribute("data-theme", choice);
 }
 
-/** Cycles Auto (follow the system) -> Light -> Dark. The choice is remembered in this browser. */
+function remember(choice: Choice) {
+  const base = `${KEY}=${choice}; path=/; SameSite=Lax`;
+  document.cookie = choice === "system" ? `${KEY}=; path=/; max-age=0; SameSite=Lax` : `${base}; max-age=31536000`;
+}
+
+/** Cycles Auto (follow the system) -> Light -> Dark. The choice is remembered in a cookie. */
 export function ThemeToggle() {
   const [choice, setChoice] = useState<Choice>("system");
 
@@ -35,12 +37,7 @@ export function ThemeToggle() {
     const next = NEXT[choice];
     setChoice(next);
     apply(next);
-    try {
-      if (next === "system") localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, next);
-    } catch {
-      /* storage blocked: the choice just lasts for this page view */
-    }
+    remember(next);
   };
 
   return (
