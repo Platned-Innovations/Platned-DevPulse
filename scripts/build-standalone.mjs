@@ -1,7 +1,7 @@
 // Builds the standalone server and assembles a deployable folder: dist/
 //   cd dist && npm start      (or: node start.cjs)
 // Self-contained: its package.json starts the bundled server, not the Next.js CLI.
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const run = spawnSync("npx next build", {
@@ -15,6 +15,10 @@ rmSync("dist", { recursive: true, force: true });
 cpSync(".next/standalone", "dist", { recursive: true });
 cpSync(".next/static", "dist/.next/static", { recursive: true });
 if (existsSync("public")) cpSync("public", "dist/public", { recursive: true });
+
+// Next copies local .env files into the standalone output. They hold secrets and must never be deployed:
+// configuration comes from the host's application settings.
+for (const name of readdirSync("dist")) if (name.startsWith(".env")) rmSync(`dist/${name}`);
 
 // Azure (Oryx) and `npm start` read package.json: point start at the bundled server and keep only
 // runtime dependencies, so an Azure-side `npm install` (if it runs) also yields a working app.
