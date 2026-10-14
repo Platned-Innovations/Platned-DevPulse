@@ -47,7 +47,7 @@ On every start the app connects to the database and creates/updates the schema. 
 | Command | What it does |
 | --- | --- |
 | `npm run migrate` | Creates/updates the schema only (idempotent). |
-| "Sync now" / "Stop" (admin) | Pulls real data from the configured platforms; Stop halts a running sync at its next step (finished repositories keep their data). |
+| "Sync now" with its "Read" choice (new since last sync, or re-read 30 days up to 5 years or all history) and "Stop" (admin) | Pulls real data from the configured platforms; Stop halts a running sync at its next step (finished repositories keep their data). |
 
 ## Configuration
 
@@ -146,6 +146,16 @@ Start the app and use **Admin > Overview & sync > Sync now**. The sync history s
 - GitHub commit line counts are not fetched (it would need one API call per commit); "lines merged" comes from merged pull requests on both platforms.
 - Bitbucket has no explicit merge timestamp, so a merged PR's last-updated time is used.
 - Anyone who can reach the URL can read the leaderboard (including names and activity). Restrict access at the Azure level (for example App Service Authentication or IP rules) if that is not acceptable.
+
+### Small plans (Free F1 / Shared D1)
+
+F1 allows about **60 CPU-minutes per day**, 1 GB of disk and 165 MB of outbound data per day, and stops the app after ~20 idle minutes. When a quota is exceeded Azure shows **Quota exceeded** and stops the site until the next day. To stay inside it:
+
+- Deploy only the `dist/` bundle (about 27 MB). It contains a `.deployment` file that tells Azure **not** to run a server-side `npm install`/build, which is otherwise the biggest CPU and disk cost.
+- Set `SYNC_INTERVAL_MINUTES` to a large value (for example `360`) or `0` and sync from **Admin > Sync now** when needed. Every sync costs CPU.
+- The scheduler measures the interval from the last stored run, so an app restart or wake-up does **not** start a sync by itself. Branch lists are refreshed at most twice a day by automatic runs.
+- Avoid **Full re-sync / All history** on F1; run those once from a local copy against the same database, or temporarily scale up.
+- Always On is not available on F1, so the background schedule only runs while the app is awake. Basic (B1) or higher is recommended for a dependable schedule.
 
 ### Troubleshooting Azure startup
 

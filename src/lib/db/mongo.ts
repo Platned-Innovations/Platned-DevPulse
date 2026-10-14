@@ -155,6 +155,6 @@ export class MongoStore implements Store {
     await this.col("sync_runs").updateOne({ _id: id }, { $set: patch });
   }
   async listSyncRuns(limit: number) {
-    return (await this.col("sync_runs").find().sort({ startedAt: -1 }).limit(limit).toArray()).map((d) => ({ ...out<SyncRun>(d), label: d.label ?? "", total: d.total ?? 0 }));
+    return (await this.col("sync_runs").find().sort({ startedAt: -1 }).limit(limit).toArray()).map((d) => ({ ...out<SyncRun>(d), label: d.label ?? "", window: d.window ?? "", total: d.total ?? 0 }));
   }
 }

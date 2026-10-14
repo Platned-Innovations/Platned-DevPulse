@@ -73,10 +73,10 @@ footer { padding: 24px 0 40px; color: var(--text-3); font-size: 13px; text-align
 .card + .card { margin-top: 16px; }
 .card h2 { margin-bottom: 12px; }
 .grid { display: grid; gap: 16px; }
-.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-.grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 860px) { .grid.cols-3, .grid.cols-4 { grid-template-columns: repeat(2, 1fr); } }
+.grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 860px) { .grid.cols-3, .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; } }
 
 /* controls */
@@ -114,15 +114,19 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .delta.flat { color: var(--text-3); }
 
 /* tables */
-.table-wrap { overflow-x: auto; }
+/* Tables scroll inside their card (both ways, header pinned); the page itself does not need to. */
+.table-wrap { overflow: auto; max-height: calc(100vh - 240px); min-height: 160px; }
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+td.num, th, td.r, td.nowrap, .nowrap { white-space: nowrap; }
+td.wrap-cell { white-space: normal; overflow-wrap: anywhere; }
+thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); box-shadow: 0 1px 0 var(--border); }
 th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); font-weight: 600; }
 td.r, th.r { text-align: right; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: var(--surface-2); }
 td.wrap-cell { white-space: normal; }
-.person { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+.person { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .person b { font-weight: 600; }
 .rank { font-weight: 700; width: 36px; color: var(--text-2); }
 .rank.r1 { color: var(--gold); } .rank.r2 { color: var(--silver); } .rank.r3 { color: var(--bronze); }
@@ -138,7 +142,7 @@ td.wrap-cell { white-space: normal; }
 .dot.github { background: var(--github); } .dot.bitbucket { background: var(--bitbucket); }
 
 /* podium */
-.podium { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; align-items: end; }
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; align-items: end; }
 @media (max-width: 700px) { .podium { grid-template-columns: 1fr; } }
 .podium .card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 0; }
 .podium .card.first { padding-top: 26px; padding-bottom: 26px; border-color: var(--gold); }
@@ -175,3 +179,46 @@ td.wrap-cell { white-space: normal; }
 
 svg text { fill: var(--text-3); font-size: 11px; font-family: inherit; }
 .heat rect { shape-rendering: crispEdges; }
+
+select { text-overflow: ellipsis; }
+.sel-branch { width: 200px; max-width: 100%; }
+button { white-space: nowrap; }
+.hide-md { }
+@media (max-width: 1000px) { .hide-md { display: none; } }
+@media (max-width: 720px) { .hide-sm { display: none; } }
+
+/* Table pages: the table card takes the remaining viewport height and scrolls inside, so the page does not. */
+.fill { display: flex; flex-direction: column; height: calc(100vh - 100px); /* header 57 + main padding 40 + slack */ }
+.fill > * { flex: none; }
+.fill > .card.grow { flex: 1 1 auto; min-height: 250px; display: flex; flex-direction: column; margin-top: 16px; }
+.fill > .card.grow > .table-wrap { flex: 1 1 auto; min-height: 0; max-height: none; }
+body:has(.fill) footer { display: none; }
+body:has(.fill) main { padding-bottom: 12px; }
+
+/* Keep the podium and tiles compact on pages where the table has to fit below them. */
+.fill .podium { margin-bottom: 12px; gap: 12px; }
+.fill .podium .card { padding: 10px 12px; gap: 2px; }
+.fill .podium .card.first { padding: 12px; }
+.fill .podium .medal { font-size: 20px; }
+.fill .podium .avatar.lg { width: 48px; height: 48px; }
+.fill .podium .avatar.xl { width: 60px; height: 60px; }
+.fill .podium .pts { font-size: 20px; }
+.fill .stat .v { font-size: 22px; }
+.fill .card.stat { padding: 12px 14px; }
+.fill .toolbar { margin-bottom: 10px; }
+.fill .page-head { margin-bottom: 10px; }
+
+.fill > .tabs, .fill > .toolbar, .fill > .stepper { align-self: flex-start; }
+.fill .pod-extra { display: none; }
+.fill .podium .card { padding: 8px 12px; }
+.fill .card.stat { padding: 10px 14px; }
+.fill .stat .k { font-size: 12px; }
+@media (max-height: 800px) { .fill .page-head p { display: none; } }
+
+/* Tiles in a grid are laid out by the grid gap, not by the stacked-card margin (which pushed tiles 2-4 down). */
+.grid > .card, .grid > .card + .card { margin-top: 0; }
+/* A table that shows all its rows and lets the page scroll instead (horizontal scroll only if the screen is narrow). */
+.table-wrap.open { max-height: none; overflow-y: visible; overflow-x: auto; }
+.table-wrap.open thead th { position: static; box-shadow: none; }
+.table-wrap.open th, .table-wrap.open td { padding-left: 7px; padding-right: 7px; }
+.table-wrap.open td:first-child, .table-wrap.open th:first-child { padding-left: 4px; }

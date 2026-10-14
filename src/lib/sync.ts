@@ -148,6 +148,15 @@ export interface SyncOptions {
 
 const windowLabel = (d: number) => (d >= 36_500 ? "all history" : d >= 365 && d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : `${d} days`);
 
+/** Window wording for a start date: "all history" or "90 days". */
+const windowSince = (since: Date) => (since.getFullYear() < 1990 ? "all history" : windowLabel(Math.max(1, Math.round((Date.now() - since.getTime()) / DAY))));
+
+/** How much history a run reads, shown in its own column. */
+function describeWindow(opts: SyncOptions, lookbackDays: number): string {
+  if (opts.discoverOnly) return "–";
+  return opts.full || opts.repoIds?.length ? windowLabel(lookbackDays) : "since last sync";
+}
+
 function describeRun(opts: SyncOptions, lookbackDays: number): string {
   if (opts.discoverOnly) return "Discover repositories";
   const n = opts.repoIds?.length ?? 0;
@@ -170,7 +179,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         await store.updateSyncRun(r.id, { status: "failed", finishedAt: new Date(), errors: [...r.errors, "Interrupted (process restarted)"] });
       }
     }
-    run = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
+    run = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), window: describeWindow(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
     await store.createSyncRun(run);
     g.__devpulseRunId = run.id;
   } catch (e) {
@@ -191,13 +200,20 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     const lookbackDays = opts.lookbackDays ?? syncConfig().lookbackDays;
     const resolver = new IdentityResolver(store, await store.listIdentities());
     const coverage = (await store.getSetting<Record<string, string>>("coverage")) ?? {};
+    const rereads: { reason: string; since: Date }[] = [];
+    // Branch lists cost one API call per repository; automatic runs refresh them at most twice a day.
+    const knownRepos = new Map((await store.listRepositories()).map((r) => [r.id, r]));
+    const lastBranchRefresh = Date.parse((await store.getSetting<string>("branchesRefreshedAt")) ?? "") || 0;
+    const refreshBranches =
+      trigger === "manual" || !!opts.discoverOnly || Date.now() - lastBranchRefresh > 12 * 3600_000;
 
     for (const provider of providers) {
       let remote: RemoteRepo[];
       const pname = provider.platform === "github" ? "GitHub" : "Bitbucket";
       try {
         setNow(`${pname}: listing repositories and branches…`);
-        remote = await provider.listRepos();
+        remote = await provider.listRepos({ branches: refreshBranches });
+        if (refreshBranches) await store.setSetting("branchesRefreshedAt", new Date().toISOString()); // saved now, so a stopped run still counts
         logEvent(`${pname}: found ${remote.length} repositories`);
       } catch (e) {
         if (e instanceof SyncCancelled) throw e;
@@ -210,6 +226,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           id: `${provider.platform}:${r.externalId}`,
           platform: provider.platform,
           ...r,
+          branches: refreshBranches ? r.branches : (knownRepos.get(`${provider.platform}:${r.externalId}`)?.branches ?? r.branches),
           trackedBranch: null,
           syncedBranch: null,
           enabled: true,
@@ -241,12 +258,32 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         // must be replaced, otherwise commits of the old branch would stay in the totals.
         const switched = repo.syncedBranch != null ? repo.syncedBranch !== branch : repo.lastSyncedAt != null && branch !== repo.defaultBranch;
         const full = !!opts.full || switched || !repo.lastSyncedAt;
+        const firstRead = !repo.lastSyncedAt && !opts.full;
         const windowStart = new Date(Date.now() - lookbackDays * DAY);
         const since = switched
           ? new Date(Math.min(windowStart.getTime(), coverage[repo.id] ? Date.parse(coverage[repo.id]) : Infinity))
           : repo.lastSyncedAt && !opts.full
             ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY)
             : windowStart;
+        if (switched || firstRead) {
+          // The run does more than its name says for this repository: tell the history table.
+          rereads.push({ reason: switched ? "branch changed" : "first sync", since });
+          const reasons = [...new Set(rereads.map((r) => r.reason))].join(", ");
+          const widest = new Date(Math.min(...rereads.map((r) => r.since.getTime())));
+          const label = `${run.label.split(" + ")[0]} + ${rereads.length} ${rereads.length === 1 ? "repository" : "repositories"} read in full (${reasons}, ${windowSince(widest)})`;
+          // Full runs: the widest of the chosen window and what re-read repositories needed.
+          const baseDays = opts.full || opts.repoIds?.length ? lookbackDays : 0;
+          const reachSince = baseDays ? new Date(Math.min(widest.getTime(), Date.now() - baseDays * DAY)) : widest;
+          const windowText =
+            opts.full || opts.repoIds?.length
+              ? windowSince(reachSince)
+              : `since last sync; ${rereads.length} ${rereads.length === 1 ? "repository" : "repositories"}: ${windowSince(widest)}`;
+          if (label !== run.label || windowText !== run.window) {
+            run.label = label;
+            run.window = windowText;
+            await store.updateSyncRun(run.id, { label, window: windowText });
+          }
+        }
         const position = `[${run.repos + run.errors.length + 1}/${run.total}]`;
         logEvent(`${position} ${repo.fullName} · branch ${branch ?? "default"} · ${since.getFullYear() < 1990 ? "all history" : `since ${since.toISOString().slice(0, 10)}`}${switched ? " · branch changed, replacing stored data" : ""}`);
         setNow(`${repo.fullName}: starting`);
@@ -308,7 +345,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     setNow("");
     logEvent(`Sync ${run.status}: ${run.repos} repositories, ${run.activities} activities${run.errors.length ? `, ${run.errors.length} problem(s)` : ""}`, run.status === "success" ? "ok" : run.status === "failed" ? "error" : "warn");
     try {
-      await store.updateSyncRun(run.id, { status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
+      await store.updateSyncRun(run.id, { label: run.label, window: run.window, status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
     } catch (e) {
       console.error("[devpulse] could not save the sync result:", (e as Error).message);
     }

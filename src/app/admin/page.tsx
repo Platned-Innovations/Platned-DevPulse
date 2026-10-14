@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BranchPicker } from "@/components/BranchPicker";
 import { SyncLog } from "@/components/SyncLog";
 import { SyncPoller } from "@/components/SyncPoller";
 import { Avatar, fmt, PLATFORM_LABEL, SetupNotice } from "@/components/ui";
@@ -31,7 +32,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const syncing = isSyncing();
 
   return (
-    <>
+    <div className={tab === "repos" ? "fill" : undefined}>
       <div className="page-head">
         <div>
           <h1>{appName()} admin</h1>
@@ -53,7 +54,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === "developers" && <Developers />}
       {tab === "repos" && <Repos />}
       {tab === "scoring" && <Scoring />}
-    </>
+    </div>
   );
 }
 
@@ -67,6 +68,21 @@ function WindowOptions({ current }: { current: number }) {
         <option key={d} value={d}>{label(d)}</option>
       ))}
       <option value="all">All history</option>
+    </>
+  );
+}
+
+/** Choices for the Sync button: quick incremental, or re-read a window of history. */
+function ScopeOptions({ current }: { current: number }) {
+  const days = [...new Set([30, 90, 180, 365, 730, 1825, current])].filter((d) => d < 36_500).sort((a, b) => a - b);
+  const label = (d: number) => (d >= 365 && d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : `${d} days`);
+  return (
+    <>
+      <option value="incremental">New since last sync (quick)</option>
+      {days.map((d) => (
+        <option key={d} value={`full:${d}`}>Re-read last {label(d)}</option>
+      ))}
+      <option value="full:all">Re-read all history</option>
     </>
   );
 }
@@ -101,50 +117,42 @@ async function Overview({ syncing }: { syncing: boolean }) {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="row spread">
-          <h2 style={{ margin: 0 }}>Sync</h2>
-          <div className="row" style={{ gap: 8 }}>
-            <form action={startSyncAction}>
-              <input type="hidden" name="mode" value="incremental" />
-              <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
-            </form>
-            {(syncing || runs.some((r) => r.status === "running")) && (
-              <form action={stopSyncAction}>
-                <button className="danger" disabled={isCancelRequested()} title="Halts at the next step; finished repositories keep their data">
-                  {isCancelRequested() ? "Stopping…" : "Stop"}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-        <div className="row" style={{ marginTop: 12 }}>
-          <form action={startSyncAction} className="row" style={{ gap: 6 }}>
-            <input type="hidden" name="mode" value="full" />
-            <label className="muted" htmlFor="full-days">Full re-sync, last</label>
-            <select id="full-days" name="days" defaultValue={String(lookbackDays)}>
-              <WindowOptions current={lookbackDays} />
+        <h2 style={{ marginBottom: 10 }}>Sync</h2>
+        <div className="row" style={{ gap: 10 }}>
+          <form action={startSyncAction} className="row" style={{ gap: 8 }}>
+            <label className="muted" htmlFor="sync-scope">Read</label>
+            <select id="sync-scope" name="scope" defaultValue="incremental" disabled={syncing} title="What this sync reads">
+              <ScopeOptions current={lookbackDays} />
             </select>
-            <button disabled={syncing || (!gh && !bb)} title="Re-reads the whole window for every enabled repository (safe: no duplicates)">Run</button>
+            <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
           </form>
+          {(syncing || runs.some((r) => r.status === "running")) && (
+            <form action={stopSyncAction}>
+              <button className="danger" disabled={isCancelRequested()} title="Halts at the next step; finished repositories keep their data">
+                {isCancelRequested() ? "Stopping…" : "Stop"}
+              </button>
+            </form>
+          )}
           <form action={startSyncAction}>
             <input type="hidden" name="mode" value="discover" />
-            <button disabled={syncing || (!gh && !bb)} title="Looks for new repositories without reading their activity">Discover repositories</button>
+            <button disabled={syncing || (!gh && !bb)} title="Looks for new repositories and branches without reading their activity">Discover repositories</button>
           </form>
         </div>
         <p className="faint" style={{ fontSize: 13 }}>
-          <b>All history</b> reads every commit and pull request ever made, which can take a long time and many API calls (GitHub allows 5,000 per hour per token); it is safe to run again if it stops. Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
+          <b>New since last sync</b> is the quick option. <b>Re-read last …</b> reads that much history again for every enabled repository (safe, no duplicates); <b>All history</b> reads everything ever made, which can take long and use many API calls (GitHub allows 5,000 per hour per token). Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. Single repositories can be synced from the Repositories tab.
         </p>
         {!gh && !bb && <p className="error-text">No platform is configured. Set GitHub and/or Bitbucket variables.</p>}
         <SyncLog active={syncing || runs.some((r) => r.status === "running")} />
         {runs.length === 0 ? <p className="muted">No sync has run yet.</p> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Started (UTC)</th><th>Type</th><th>Status</th><th className="r">Repositories</th><th className="r">Activities</th><th>Notes</th></tr></thead>
+              <thead><tr><th>Started (UTC)</th><th>Type</th><th>History read</th><th>Status</th><th className="r">Repositories</th><th className="r">Activities</th><th>Notes</th></tr></thead>
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id}>
                     <td className="num">{r.startedAt.toISOString().slice(0, 16).replace("T", " ")}</td>
                     <td className="wrap-cell"><b>{r.label || <span className="muted">Not recorded</span>}</b><div className="faint" style={{ fontSize: 12 }}>{r.trigger === "schedule" ? "automatic" : "manual"}</div></td>
+                    <td className="wrap-cell">{r.window || <span className="muted">Not recorded</span>}</td>
                     <td><span className={`status ${r.status}`}>{r.status}</span></td>
                     <td className="r num">{r.status === "running" && r.total > 0 ? `${r.repos} / ${r.total}` : r.repos}</td>
                     <td className="r num">{fmt(r.activities)}</td>
@@ -173,34 +181,35 @@ async function Developers() {
 
   return (
     <>
-      <div className="card">
+      <div className={suggestions.length > 0 ? "grid cols-2" : undefined} style={{ alignItems: "stretch" }}>
+      <div className="card" style={{ margin: 0 }}>
         <h2>Merge developers</h2>
         <p className="muted" style={{ marginTop: -6 }}>
           The same person often has different IDs on GitHub and Bitbucket. Merging combines their accounts into one record: from now on, past and future stats from every linked account are summed under one name.
         </p>
-        <form action={mergeAction} className="row">
-          <label className="row" style={{ gap: 6 }}>
-            <span>Merge</span>
-            <select name="source" required defaultValue="">
+        <form action={mergeAction} style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
+            <span className="muted">Merge this developer…</span>
+            <select name="source" required defaultValue="" style={{ width: "100%", minWidth: 0 }}>
               <option value="" disabled>Select developer…</option>
               {options}
             </select>
           </label>
-          <label className="row" style={{ gap: 6 }}>
-            <span>into</span>
-            <select name="target" required defaultValue="">
+          <label style={{ display: "grid", gap: 4, minWidth: 0 }}>
+            <span className="muted">…into this record (kept)</span>
+            <select name="target" required defaultValue="" style={{ width: "100%", minWidth: 0 }}>
               <option value="" disabled>Select the record to keep…</option>
               {options}
             </select>
           </label>
-          <button className="primary">Merge</button>
+          <div><button className="primary">Merge</button></div>
         </form>
       </div>
 
       {suggestions.length > 0 && (
-        <div className="card">
+        <div className="card" style={{ margin: 0 }}>
           <h2>Suggested merges</h2>
-          <ul className="list">
+          <ul className="list" style={{ maxHeight: 170, overflow: "auto" }}>
             {suggestions.map((s) => (
               <li key={`${s.a.developer.id}${s.b.developer.id}`}>
                 <span>
@@ -217,10 +226,11 @@ async function Developers() {
           </ul>
         </div>
       )}
+      </div>
 
       <div className="card">
         <h2>All developers ({devs.length})</h2>
-        <div className="table-wrap">
+        <div className="table-wrap open">
           <table>
             <thead><tr><th>Developer</th><th>Linked accounts</th><th>Visibility</th></tr></thead>
             <tbody>
@@ -281,7 +291,7 @@ async function Repos() {
   const res = await safe(async () => (await getStore()).listRepositories());
   if (!res.ok) return <SetupNotice error={res.error} />;
   return (
-    <div className="card">
+    <div className="card grow">
       <h2>Repositories ({res.data.length})</h2>
       <p className="muted" style={{ marginTop: -6 }}>Disabled repositories are skipped by sync and excluded from all rankings.</p>
       {res.data.length === 0 ? <p className="muted">None discovered yet. Run a sync.</p> : (
@@ -291,38 +301,50 @@ async function Repos() {
             <tbody>
               {res.data.map((r) => (
                 <tr key={r.id}>
-                  <td><b>{r.fullName}</b> {r.isPrivate && <span className="chip">private</span>} {r.archived && <span className="chip">archived</span>}</td>
-                  <td><span className={`dot ${r.platform}`} /> {PLATFORM_LABEL[r.platform]}</td>
-                  <td className="muted num">{r.lastSyncedAt ? r.lastSyncedAt.toISOString().slice(0, 16).replace("T", " ") : "never"}</td>
+                  <td className="wrap-cell">
+                    <b>{r.fullName}</b>{" "}
+                    {r.isPrivate && <span className="chip">private</span>} {r.archived && <span className="chip">archived</span>}
+                  </td>
+                  <td className="nowrap"><span className={`dot ${r.platform}`} /> {PLATFORM_LABEL[r.platform]}</td>
+                  <td className="muted num">
+                    {r.lastSyncedAt ? (
+                      <>
+                        {r.lastSyncedAt.toISOString().slice(0, 10)}
+                        <div className="faint" style={{ fontSize: 12 }}>{r.lastSyncedAt.toISOString().slice(11, 16)} UTC</div>
+                      </>
+                    ) : (
+                      "never"
+                    )}
+                  </td>
                   <td>
                     {r.branches.length === 0 ? (
                       <span className="faint" title="Run Discover repositories to load the branch list">{r.defaultBranch ?? "unknown"} (default)</span>
                     ) : (
-                      <form action={setBranchAction} className="row" style={{ gap: 6 }}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <select name="branch" defaultValue={r.trackedBranch && r.branches.includes(r.trackedBranch) ? r.trackedBranch : ""} aria-label="Branch to read">
-                          <option value="">Automatic ({autoBranch(r) ?? "default"})</option>
-                          {r.branches.map((b) => <option key={b} value={b}>{b}{b === r.defaultBranch ? " (default)" : ""}</option>)}
-                        </select>
-                        <button title="Commits are read from this branch, and pull requests that target it are counted">Save</button>
-                      </form>
+                      <>
+                        <BranchPicker
+                          repoId={r.id}
+                          value={r.trackedBranch && r.branches.includes(r.trackedBranch) ? r.trackedBranch : ""}
+                          autoLabel={autoBranch(r) ?? "default"}
+                          branches={r.branches.map((b) => ({ value: b, label: `${b}${b === r.defaultBranch ? " (default)" : ""}` }))}
+                        />
+                        <div className="faint" style={{ fontSize: 12 }}>reading: <b>{effectiveBranch(r) ?? "default"}</b></div>
+                      </>
                     )}
-                    {r.branches.length > 0 && <div className="faint" style={{ fontSize: 12 }}>reading: <b>{effectiveBranch(r) ?? "default"}</b></div>}
                   </td>
-                  <td>
+                  <td className="nowrap">
                     <form action={setRepoEnabledAction}>
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="enabled" value={String(!r.enabled)} />
-                      <button>{r.enabled ? "Enabled - disable" : "Disabled - enable"}</button>
+                      <button title={r.enabled ? "Click to disable" : "Click to enable"}>{r.enabled ? "Enabled" : "Disabled"}</button>
                     </form>
                   </td>
-                  <td>
-                    <form action={syncRepoAction} className="row" style={{ gap: 6 }}>
+                  <td className="nowrap">
+                    <form action={syncRepoAction} className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
                       <input type="hidden" name="id" value={r.id} />
-                      <select name="days" defaultValue="90" aria-label="History window" disabled={!r.enabled}>
+                      <select name="days" defaultValue="90" aria-label="History window" disabled={!r.enabled} style={{ width: 110 }}>
                         <WindowOptions current={90} />
                       </select>
-                      <button disabled={!r.enabled || isSyncing()} title={r.enabled ? "Re-read this repository's recent history now" : "Enable the repository first"}>Sync now</button>
+                      <button disabled={!r.enabled || isSyncing()} title={r.enabled ? "Re-read this repository's recent history now" : "Enable the repository first"}>Sync</button>
                     </form>
                   </td>
                 </tr>

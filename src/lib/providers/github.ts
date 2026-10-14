@@ -46,7 +46,7 @@ export class GitHubProvider implements Provider {
     return all;
   }
 
-  async listRepos(): Promise<RemoteRepo[]> {
+  async listRepos(opts: { branches?: boolean } = {}): Promise<RemoteRepo[]> {
     const out: RemoteRepo[] = [];
     for (const org of this.cfg.orgs) {
       // Orgs first; fall back to a user account namespace.
@@ -76,7 +76,7 @@ export class GitHubProvider implements Provider {
       }
     }
     // Branch names let the admin (and the auto-pick) choose which branch to read.
-    await mapLimit(out, 6, async (r) => {
+    if (opts.branches !== false) await mapLimit(out, 6, async (r) => {
       try {
         r.branches = (await this.paged<any>(`${this.cfg.apiUrl}/repos/${r.fullName}/branches?per_page=100`)).map((b) => b.name as string);
       } catch {
