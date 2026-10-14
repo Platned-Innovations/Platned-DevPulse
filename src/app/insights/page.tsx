@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
 import { ActivityBars, SplitBar, WeekdayBars } from "@/components/Charts";
-import { Avatar, Delta, EmptyState, fmt, PeriodControls, PLATFORM_LABEL, SetupNotice, Stat } from "@/components/ui";
+import { Avatar, CoverageNotice, Delta, EmptyState, fmt, PeriodControls, PLATFORM_LABEL, SetupNotice, Stat } from "@/components/ui";
 import { parseFilters, type SearchParams } from "@/lib/filters";
 import { safe } from "@/lib/safe";
-import { getFilterOptions, getInsights } from "@/lib/stats";
+import { getFilterOptions, getHistoryStart, getInsights } from "@/lib/stats";
 
 export const metadata = { title: "Insights" };
 
@@ -12,9 +12,9 @@ const COLORS = { github: "var(--github)", bitbucket: "var(--bitbucket)" };
 
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const filters = { ...parseFilters(await searchParams), repoId: null };
-  const res = await safe(async () => ({ i: await getInsights(filters), opts: await getFilterOptions() }));
+  const res = await safe(async () => ({ i: await getInsights(filters), opts: await getFilterOptions(), historyStart: await getHistoryStart() }));
   if (!res.ok) return <SetupNotice error={res.error} />;
-  const { i, opts } = res.data;
+  const { i, opts, historyStart } = res.data;
 
   return (
     <>
@@ -25,6 +25,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
       <PeriodControls base="/insights" filters={filters} range={i.range} />
+      <CoverageNotice range={i.range} historyStart={historyStart} />
       <div className="toolbar">
         <FilterBar platforms={opts.platforms.map((p) => ({ value: p, label: PLATFORM_LABEL[p] }))} repos={[]} showRepo={false} />
       </div>

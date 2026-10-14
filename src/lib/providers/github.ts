@@ -93,10 +93,13 @@ export class GitHubProvider implements Provider {
       if (!actor) {
         if (c.author && (c.author.type === "Bot" || /\[bot\]$/.test(c.author.login ?? ""))) continue;
         const email: string | undefined = c.commit?.author?.email;
-        if (!email || /noreply\.github\.com$/.test(email) && !c.author) continue;
+        if (!email) continue;
+        // "12345+login@users.noreply.github.com" identifies the GitHub account even when the API
+        // did not link the commit to it.
+        const noreply = /^(\d+)\+([^@]+)@users\.noreply\.github\.com$/i.exec(email);
         actor = {
-          externalId: `email:${email.toLowerCase()}`,
-          username: email.split("@")[0],
+          externalId: noreply ? noreply[1] : `email:${email.toLowerCase()}`,
+          username: noreply ? noreply[2] : email.split("@")[0],
           displayName: c.commit.author.name ?? email,
           avatarUrl: null,
           email,

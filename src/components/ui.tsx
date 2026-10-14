@@ -107,6 +107,17 @@ export function SetupNotice({ error }: { error: string }) {
   );
 }
 
+/** Warns when the chosen period starts before the synced history. */
+export function CoverageNotice({ range, historyStart }: { range: Range; historyStart: Date | null }) {
+  if (!historyStart || range.from >= historyStart) return null;
+  const d = historyStart.toISOString().slice(0, 10);
+  return (
+    <p className="notice" style={{ padding: "10px 14px", marginBottom: 16, textAlign: "left" }} role="note">
+      Synced history starts on <b>{d}</b>, so totals for earlier dates are incomplete. An admin can load more with <b>Admin → Full re-sync</b>.
+    </p>
+  );
+}
+
 export function EmptyState({ title = "No activity in this period", children }: { title?: string; children?: React.ReactNode }) {
   return (
     <div className="notice">

@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
 import { Sparkline } from "@/components/Charts";
-import { Delta, EmptyState, fmt, PeriodControls, PLATFORM_LABEL, SetupNotice, ago } from "@/components/ui";
+import { CoverageNotice, Delta, EmptyState, fmt, PeriodControls, PLATFORM_LABEL, SetupNotice, ago } from "@/components/ui";
 import { parseFilters, type SearchParams } from "@/lib/filters";
 import { safe } from "@/lib/safe";
-import { getFilterOptions, getProjectRankings } from "@/lib/stats";
+import { getFilterOptions, getHistoryStart, getProjectRankings } from "@/lib/stats";
 
 export const metadata = { title: "Projects" };
 
 export default async function ProjectsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const filters = { ...parseFilters(await searchParams), repoId: null };
-  const res = await safe(async () => ({ data: await getProjectRankings(filters), opts: await getFilterOptions() }));
+  const res = await safe(async () => ({ data: await getProjectRankings(filters), opts: await getFilterOptions(), historyStart: await getHistoryStart() }));
   if (!res.ok) return <SetupNotice error={res.error} />;
-  const { data, opts } = res.data;
+  const { data, opts, historyStart } = res.data;
 
   return (
     <>
@@ -23,6 +23,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
       <PeriodControls base="/projects" filters={filters} range={data.range} />
+      <CoverageNotice range={data.range} historyStart={historyStart} />
       <div className="toolbar">
         <FilterBar platforms={opts.platforms.map((p) => ({ value: p, label: PLATFORM_LABEL[p] }))} repos={[]} showRepo={false} />
       </div>
