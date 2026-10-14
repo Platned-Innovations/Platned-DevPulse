@@ -11,23 +11,35 @@ export class DbNotConfiguredError extends Error {
   }
 }
 
-/** Lazily creates one shared store per process, picking the backend from env. */
-export function getStore(): Promise<Store> {
-  if (!g.__devpulseStore) {
-    const p = (async () => {
-      const cfg = dbConfig();
-      if (!cfg) throw new DbNotConfiguredError();
-      const store: Store =
-        cfg.kind === "postgres"
-          ? new (await import("./postgres")).PostgresStore(cfg.url)
-          : new (await import("./mongo")).MongoStore(cfg.url);
-      await store.init();
-      return store;
-    })();
-    g.__devpulseStore = p;
-    p.catch(() => {
-      g.__devpulseStore = undefined; // allow retry after a failed connect
-    });
+async function storeClass(kind: "postgres" | "mongodb") {
+  return kind === "postgres" ? (await import("./postgres")).PostgresStore : (await import("./mongo")).MongoStore;
+}
+
+/**
+ * Lazily creates one shared store per process, picking the backend from env.
+ * In development, hot reloads re-evaluate the store classes; a store built from an older
+ * class (old row mapping, old schema) is closed and rebuilt so schema changes take effect.
+ */
+export async function getStore(): Promise<Store> {
+  const cfg = dbConfig();
+  if (!cfg) throw new DbNotConfiguredError();
+  const Cls = await storeClass(cfg.kind);
+
+  if (g.__devpulseStore) {
+    const existing = await g.__devpulseStore.catch(() => null);
+    if (existing instanceof Cls) return existing;
+    // Not closed: a running sync may still hold it. Its idle connections time out on their own.
+    g.__devpulseStore = undefined;
   }
-  return g.__devpulseStore;
+
+  const p = (async () => {
+    const store: Store = new Cls(cfg.url);
+    await store.init();
+    return store;
+  })();
+  g.__devpulseStore = p;
+  p.catch(() => {
+    if (g.__devpulseStore === p) g.__devpulseStore = undefined; // allow retry after a failed connect
+  });
+  return p;
 }

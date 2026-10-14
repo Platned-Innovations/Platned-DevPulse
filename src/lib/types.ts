@@ -52,6 +52,13 @@ export interface Repository {
   language: string | null;
   isPrivate: boolean;
   archived: boolean;
+  /** Default branch and all branch names, refreshed on every sync. */
+  defaultBranch: string | null;
+  branches: string[];
+  /** Branch chosen by the admin; null = automatic (develop/dev, then main/prod, then the default branch). */
+  trackedBranch: string | null;
+  /** Branch the stored activity was read from; a change triggers a clean re-read. */
+  syncedBranch: string | null;
   /** Disabled repositories are skipped by sync and ignored in rankings. */
   enabled: boolean;
   lastSyncedAt: Date | null;
@@ -74,8 +81,12 @@ export interface SyncRun {
   id: string;
   startedAt: Date;
   finishedAt: Date | null;
-  status: "running" | "success" | "partial" | "failed";
+  status: "running" | "success" | "partial" | "failed" | "cancelled";
   trigger: "manual" | "schedule";
+  /** Human description of what the run does, e.g. "Full re-sync · 1 year". */
+  label: string;
+  /** Repositories the run intends to process (for progress). */
+  total: number;
   repos: number;
   activities: number;
   errors: string[];

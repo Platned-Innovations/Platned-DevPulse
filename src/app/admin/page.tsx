@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SyncLog } from "@/components/SyncLog";
 import { SyncPoller } from "@/components/SyncPoller";
 import { Avatar, fmt, PLATFORM_LABEL, SetupNotice } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
@@ -7,10 +8,12 @@ import { getStore } from "@/lib/db";
 import { listDevelopersWithIdentities, suggestMerges } from "@/lib/identities";
 import { safe } from "@/lib/safe";
 import { ACTIVITY_LABELS } from "@/lib/scoring";
+import { autoBranch, effectiveBranch } from "@/lib/branches";
 import { getWeights } from "@/lib/stats";
+import { isCancelRequested } from "@/lib/cancel";
 import { isSyncing } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
-import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setHiddenAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
+import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setBranchAction, setHiddenAction, stopSyncAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
 
 export const metadata = { title: "Admin" };
 
@@ -54,6 +57,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   );
 }
 
+/** History windows offered for manual syncs. */
+function WindowOptions({ current }: { current: number }) {
+  const days = [...new Set([30, 90, 180, 365, 730, 1825, current])].filter((d) => d < 36_500).sort((a, b) => a - b);
+  const label = (d: number) => (d % 365 === 0 && d >= 365 ? `${d / 365} year${d === 365 ? "" : "s"}` : `${d} days`);
+  return (
+    <>
+      {days.map((d) => (
+        <option key={d} value={d}>{label(d)}</option>
+      ))}
+      <option value="all">All history</option>
+    </>
+  );
+}
+
 async function Overview({ syncing }: { syncing: boolean }) {
   const res = await safe(async () => (await getStore()).listSyncRuns(10));
   if (!res.ok) return <SetupNotice error={res.error} />;
@@ -86,17 +103,26 @@ async function Overview({ syncing }: { syncing: boolean }) {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="row spread">
           <h2 style={{ margin: 0 }}>Sync</h2>
-          <form action={startSyncAction}>
-            <input type="hidden" name="mode" value="incremental" />
-            <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
-          </form>
+          <div className="row" style={{ gap: 8 }}>
+            <form action={startSyncAction}>
+              <input type="hidden" name="mode" value="incremental" />
+              <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
+            </form>
+            {(syncing || runs.some((r) => r.status === "running")) && (
+              <form action={stopSyncAction}>
+                <button className="danger" disabled={isCancelRequested()} title="Halts at the next step; finished repositories keep their data">
+                  {isCancelRequested() ? "Stopping…" : "Stop"}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <form action={startSyncAction} className="row" style={{ gap: 6 }}>
             <input type="hidden" name="mode" value="full" />
             <label className="muted" htmlFor="full-days">Full re-sync, last</label>
             <select id="full-days" name="days" defaultValue={String(lookbackDays)}>
-              {[...new Set([30, 90, 180, 365, lookbackDays])].sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
+              <WindowOptions current={lookbackDays} />
             </select>
             <button disabled={syncing || (!gh && !bb)} title="Re-reads the whole window for every enabled repository (safe: no duplicates)">Run</button>
           </form>
@@ -106,20 +132,21 @@ async function Overview({ syncing }: { syncing: boolean }) {
           </form>
         </div>
         <p className="faint" style={{ fontSize: 13 }}>
-          Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
+          <b>All history</b> reads every commit and pull request ever made, which can take a long time and many API calls (GitHub allows 5,000 per hour per token); it is safe to run again if it stops. Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
         </p>
         {!gh && !bb && <p className="error-text">No platform is configured. Set GitHub and/or Bitbucket variables.</p>}
+        <SyncLog active={syncing || runs.some((r) => r.status === "running")} />
         {runs.length === 0 ? <p className="muted">No sync has run yet.</p> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Started (UTC)</th><th>Trigger</th><th>Status</th><th className="r">Repos</th><th className="r">Activities</th><th>Notes</th></tr></thead>
+              <thead><tr><th>Started (UTC)</th><th>Type</th><th>Status</th><th className="r">Repositories</th><th className="r">Activities</th><th>Notes</th></tr></thead>
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id}>
                     <td className="num">{r.startedAt.toISOString().slice(0, 16).replace("T", " ")}</td>
-                    <td>{r.trigger}</td>
+                    <td className="wrap-cell"><b>{r.label || <span className="muted">Not recorded</span>}</b><div className="faint" style={{ fontSize: 12 }}>{r.trigger === "schedule" ? "automatic" : "manual"}</div></td>
                     <td><span className={`status ${r.status}`}>{r.status}</span></td>
-                    <td className="r num">{r.repos}</td>
+                    <td className="r num">{r.status === "running" && r.total > 0 ? `${r.repos} / ${r.total}` : r.repos}</td>
                     <td className="r num">{fmt(r.activities)}</td>
                     <td className="wrap-cell muted" style={{ maxWidth: 420 }}>{r.errors.slice(0, 3).join(" · ")}{r.errors.length > 3 ? ` (+${r.errors.length - 3} more)` : ""}</td>
                   </tr>
@@ -260,13 +287,28 @@ async function Repos() {
       {res.data.length === 0 ? <p className="muted">None discovered yet. Run a sync.</p> : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Tracking</th><th>Manual sync</th></tr></thead>
+            <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Branch read</th><th>Tracking</th><th>Manual sync</th></tr></thead>
             <tbody>
               {res.data.map((r) => (
                 <tr key={r.id}>
                   <td><b>{r.fullName}</b> {r.isPrivate && <span className="chip">private</span>} {r.archived && <span className="chip">archived</span>}</td>
                   <td><span className={`dot ${r.platform}`} /> {PLATFORM_LABEL[r.platform]}</td>
                   <td className="muted num">{r.lastSyncedAt ? r.lastSyncedAt.toISOString().slice(0, 16).replace("T", " ") : "never"}</td>
+                  <td>
+                    {r.branches.length === 0 ? (
+                      <span className="faint" title="Run Discover repositories to load the branch list">{r.defaultBranch ?? "unknown"} (default)</span>
+                    ) : (
+                      <form action={setBranchAction} className="row" style={{ gap: 6 }}>
+                        <input type="hidden" name="id" value={r.id} />
+                        <select name="branch" defaultValue={r.trackedBranch && r.branches.includes(r.trackedBranch) ? r.trackedBranch : ""} aria-label="Branch to read">
+                          <option value="">Automatic ({autoBranch(r) ?? "default"})</option>
+                          {r.branches.map((b) => <option key={b} value={b}>{b}{b === r.defaultBranch ? " (default)" : ""}</option>)}
+                        </select>
+                        <button title="Commits are read from this branch, and pull requests that target it are counted">Save</button>
+                      </form>
+                    )}
+                    {r.branches.length > 0 && <div className="faint" style={{ fontSize: 12 }}>reading: <b>{effectiveBranch(r) ?? "default"}</b></div>}
+                  </td>
                   <td>
                     <form action={setRepoEnabledAction}>
                       <input type="hidden" name="id" value={r.id} />
@@ -275,8 +317,11 @@ async function Repos() {
                     </form>
                   </td>
                   <td>
-                    <form action={syncRepoAction}>
+                    <form action={syncRepoAction} className="row" style={{ gap: 6 }}>
                       <input type="hidden" name="id" value={r.id} />
+                      <select name="days" defaultValue="90" aria-label="History window" disabled={!r.enabled}>
+                        <WindowOptions current={90} />
+                      </select>
                       <button disabled={!r.enabled || isSyncing()} title={r.enabled ? "Re-read this repository's recent history now" : "Enable the repository first"}>Sync now</button>
                     </form>
                   </td>

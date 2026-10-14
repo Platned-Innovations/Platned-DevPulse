@@ -8,8 +8,16 @@ import { getStore } from "@/lib/db";
 import { mergeDevelopers, unlinkIdentity } from "@/lib/identities";
 import { DEFAULT_WEIGHTS } from "@/lib/scoring";
 import { clearStatsCache } from "@/lib/stats";
-import { isSyncing, runSync, type SyncOptions } from "@/lib/sync";
+import { requestCancel } from "@/lib/cancel";
+import { forceStopSync, isSyncing, runSync, type SyncOptions } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
+
+/** "all" = everything (a 100-year window); otherwise a whole number of days. */
+const parseDays = (v: FormDataEntryValue | null): number | undefined => {
+  if (v === "all") return 36_500;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 36_500 ? n : undefined;
+};
 
 const back = (tab: string, msg?: string, error = false) =>
   redirect(`/admin?tab=${tab}${msg ? `&${error ? "error" : "ok"}=${encodeURIComponent(msg)}` : ""}`);
@@ -31,11 +39,10 @@ export async function logoutAction() {
 export async function startSyncAction(form: FormData) {
   await requireAdmin();
   const mode = String(form.get("mode") ?? "incremental");
-  const days = Number(form.get("days"));
   const opts: SyncOptions = {
     full: mode === "full",
     discoverOnly: mode === "discover",
-    lookbackDays: Number.isInteger(days) && days >= 1 && days <= 1825 ? days : undefined,
+    lookbackDays: parseDays(form.get("days")),
   };
   if (isSyncing()) back("overview", "A sync is already running.", true);
   // Runs in the background; the admin page polls for progress.
@@ -43,17 +50,43 @@ export async function startSyncAction(form: FormData) {
   back("overview", mode === "discover" ? "Looking for new repositories…" : mode === "full" ? "Full re-sync started." : "Sync started.");
 }
 
+/**
+ * Stops the running sync. It halts before the next API request; repositories already finished keep
+ * their data. If the row says "running" but no sync is active here (e.g. the app restarted), it is closed.
+ */
+export async function stopSyncAction() {
+  await requireAdmin();
+  if (isSyncing()) {
+    requestCancel();
+    // Normally it halts within a moment; wait a few seconds for it to wind down.
+    for (let i = 0; i < 30 && isSyncing(); i++) await new Promise((r) => setTimeout(r, 200));
+    if (isSyncing()) {
+      await forceStopSync(); // it did not react: release it so a new sync can start
+      back("overview", "The sync did not respond and was force-stopped.");
+    }
+    back("overview", "Sync stopped.");
+  }
+  const store = await getStore();
+  let closed = 0;
+  for (const r of await store.listSyncRuns(10)) {
+    if (r.status === "running") {
+      await store.updateSyncRun(r.id, { status: "cancelled", finishedAt: new Date(), errors: [...r.errors, "Marked as stopped (no sync was active)"] });
+      closed++;
+    }
+  }
+  back("overview", closed ? "Marked the stuck run as stopped." : "No sync is running.");
+}
+
 /** Re-reads the whole look-back window for a single repository. */
 export async function syncRepoAction(form: FormData) {
   await requireAdmin();
   const id = String(form.get("id") ?? "");
-  const days = Number(form.get("days"));
   if (isSyncing()) back("repos", "A sync is already running.", true);
   if (id) {
     void runSync("manual", {
       repoIds: [id],
       full: true,
-      lookbackDays: Number.isInteger(days) && days >= 1 && days <= 1825 ? days : undefined,
+      lookbackDays: parseDays(form.get("days")),
     }).catch((e) => console.error("[devpulse] repo sync failed:", e));
   }
   back("repos", "Repository sync started. Results appear under Overview & sync.");
@@ -123,6 +156,26 @@ export async function setRepoEnabledAction(form: FormData) {
   clearStatsCache();
   revalidatePath("/", "layout");
   back("repos");
+}
+
+/** Chooses which branch of a repository is read ("" = automatic). The next sync replaces data read from the old branch. */
+export async function setBranchAction(form: FormData) {
+  await requireAdmin();
+  const store = await getStore();
+  const id = String(form.get("id") ?? "");
+  const branch = String(form.get("branch") ?? "");
+  const repo = (await store.listRepositories()).find((r) => r.id === id);
+  if (!repo) back("repos", "Repository not found.", true);
+  else if (branch && !repo.branches.includes(branch)) back("repos", "That branch does not exist. Run Discover repositories to refresh branches.", true);
+  else {
+    await store.setRepositoryBranch(id, branch || null);
+    clearStatsCache();
+    revalidatePath("/", "layout");
+    if (repo.enabled && !isSyncing()) {
+      void runSync("manual", { repoIds: [id], full: true }).catch((e) => console.error("[devpulse] repo sync failed:", e));
+    }
+    back("repos", "Branch saved. Re-reading the repository from that branch now.");
+  }
 }
 
 export async function saveWeightsAction(form: FormData) {

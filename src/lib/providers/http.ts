@@ -1,3 +1,5 @@
+import { throwIfCancelled } from "../cancel";
+
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -16,6 +18,7 @@ export async function getJson<T>(
   headers: Record<string, string>,
   attempt = 0,
 ): Promise<{ data: T; headers: Headers }> {
+  throwIfCancelled();
   const res = await fetch(url, { headers, cache: "no-store" });
   if (res.ok) return { data: (await res.json()) as T, headers: res.headers };
 
@@ -43,6 +46,7 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
   await Promise.all(
     Array.from({ length: Math.min(limit, items.length) }, async () => {
       while (next < items.length) {
+        throwIfCancelled();
         const i = next++;
         results[i] = await fn(items[i]);
       }

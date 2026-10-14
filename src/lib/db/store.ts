@@ -27,7 +27,11 @@ export interface Store {
   listRepositories(): Promise<Repository[]>;
   upsertRepository(r: Repository): Promise<void>;
   setRepositoryEnabled(id: string, enabled: boolean): Promise<void>;
-  markRepositorySynced(id: string, at: Date): Promise<void>;
+  markRepositorySynced(id: string, at: Date | null): Promise<void>;
+  setRepositoryBranch(id: string, trackedBranch: string | null): Promise<void>;
+  setRepositorySyncedBranch(id: string, branch: string | null): Promise<void>;
+  /** Removes all stored activity of one repository (used when its tracked branch changes). */
+  deleteActivitiesForRepo(repoId: string): Promise<void>;
 
   /** True when no activity has ever been stored (fresh database). */
   isEmpty(): Promise<boolean>;

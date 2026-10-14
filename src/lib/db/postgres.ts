@@ -37,8 +37,16 @@ CREATE TABLE IF NOT EXISTS repositories (
   is_private BOOLEAN NOT NULL DEFAULT FALSE,
   archived BOOLEAN NOT NULL DEFAULT FALSE,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
-  last_synced_at TIMESTAMPTZ
+  last_synced_at TIMESTAMPTZ,
+  default_branch TEXT,
+  branches JSONB NOT NULL DEFAULT '[]',
+  tracked_branch TEXT,
+  synced_branch TEXT
 );
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS default_branch TEXT;
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS branches JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS tracked_branch TEXT;
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS synced_branch TEXT;
 CREATE TABLE IF NOT EXISTS activities (
   id TEXT PRIMARY KEY,
   identity_id TEXT NOT NULL,
@@ -62,10 +70,14 @@ CREATE TABLE IF NOT EXISTS sync_runs (
   finished_at TIMESTAMPTZ,
   status TEXT NOT NULL,
   trigger TEXT NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  total INTEGER NOT NULL DEFAULT 0,
   repos INTEGER NOT NULL DEFAULT 0,
   activities INTEGER NOT NULL DEFAULT 0,
   errors JSONB NOT NULL DEFAULT '[]'
 );
+ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
+ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS total INTEGER NOT NULL DEFAULT 0;
 `;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -99,6 +111,10 @@ const repo = (r: any): Repository => ({
   language: r.language,
   isPrivate: r.is_private,
   archived: r.archived,
+  defaultBranch: r.default_branch ?? null,
+  branches: r.branches ?? [],
+  trackedBranch: r.tracked_branch ?? null,
+  syncedBranch: r.synced_branch ?? null,
   enabled: r.enabled,
   lastSyncedAt: r.last_synced_at,
 });
@@ -119,6 +135,8 @@ const run = (r: any): SyncRun => ({
   finishedAt: r.finished_at,
   status: r.status,
   trigger: r.trigger,
+  label: r.label ?? "",
+  total: r.total ?? 0,
   repos: r.repos,
   activities: r.activities,
   errors: r.errors ?? [],
@@ -135,6 +153,7 @@ const COLS: Record<string, string> = {
   finishedAt: "finished_at",
   status: "status",
   repos: "repos",
+  total: "total",
   activities: "activities",
   errors: "errors",
 };
@@ -205,18 +224,28 @@ export class PostgresStore implements Store {
   async upsertRepository(r: Repository) {
     // `enabled` and `last_synced_at` are intentionally preserved on conflict.
     await this.pool.query(
-      `INSERT INTO repositories (id, platform, external_id, owner, name, full_name, url, description, language, is_private, archived, enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `INSERT INTO repositories (id, platform, external_id, owner, name, full_name, url, description, language, is_private, archived, enabled, default_branch, branches)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)
        ON CONFLICT (id) DO UPDATE SET owner=EXCLUDED.owner, name=EXCLUDED.name, full_name=EXCLUDED.full_name,
          url=EXCLUDED.url, description=EXCLUDED.description, language=EXCLUDED.language,
-         is_private=EXCLUDED.is_private, archived=EXCLUDED.archived`,
-      [r.id, r.platform, r.externalId, r.owner, r.name, r.fullName, r.url, r.description, r.language, r.isPrivate, r.archived, r.enabled],
+         is_private=EXCLUDED.is_private, archived=EXCLUDED.archived,
+         default_branch=EXCLUDED.default_branch, branches=EXCLUDED.branches`,
+      [r.id, r.platform, r.externalId, r.owner, r.name, r.fullName, r.url, r.description, r.language, r.isPrivate, r.archived, r.enabled, r.defaultBranch, JSON.stringify(r.branches)],
     );
   }
   async setRepositoryEnabled(id: string, enabled: boolean) {
     await this.pool.query("UPDATE repositories SET enabled=$2 WHERE id=$1", [id, enabled]);
   }
-  async markRepositorySynced(id: string, at: Date) {
+  async setRepositoryBranch(id: string, trackedBranch: string | null) {
+    await this.pool.query("UPDATE repositories SET tracked_branch=$2 WHERE id=$1", [id, trackedBranch]);
+  }
+  async setRepositorySyncedBranch(id: string, branch: string | null) {
+    await this.pool.query("UPDATE repositories SET synced_branch=$2 WHERE id=$1", [id, branch]);
+  }
+  async deleteActivitiesForRepo(repoId: string) {
+    await this.pool.query("DELETE FROM activities WHERE repo_id=$1", [repoId]);
+  }
+  async markRepositorySynced(id: string, at: Date | null) {
     await this.pool.query("UPDATE repositories SET last_synced_at=$2 WHERE id=$1", [id, at]);
   }
 
@@ -280,8 +309,8 @@ export class PostgresStore implements Store {
 
   async createSyncRun(r: SyncRun) {
     await this.pool.query(
-      "INSERT INTO sync_runs (id, started_at, finished_at, status, trigger, repos, activities, errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-      [r.id, r.startedAt, r.finishedAt, r.status, r.trigger, r.repos, r.activities, JSON.stringify(r.errors)],
+      "INSERT INTO sync_runs (id, started_at, finished_at, status, trigger, label, total, repos, activities, errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+      [r.id, r.startedAt, r.finishedAt, r.status, r.trigger, r.label, r.total, r.repos, r.activities, JSON.stringify(r.errors)],
     );
   }
   updateSyncRun(id: string, p: Partial<SyncRun>) {

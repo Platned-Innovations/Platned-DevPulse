@@ -16,6 +16,15 @@ The app is branded **`<COMPANY_NAME> DevPulse`** (set `COMPANY_NAME`; without it
 - **Admin-only login**: no end-user accounts. The leaderboard is open; the admin area manages sync, merging, hiding bots/alumni, enabling repositories and the scoring weights.
 - **Automatic sync**: a background schedule plus a manual "Sync now" in the admin area.
 
+### Which branch is read
+
+Work is usually merged into a development branch, while the default branch (often `main`/`PROD`) only receives release merges by a few leads. DevPulse therefore reads, **per repository**:
+
+- **commits** on the chosen branch, and
+- **pull requests that target that branch** (with their reviews and review comments).
+
+By default the branch is picked automatically: `develop`, `dev` or `development` if one exists (case-insensitive), otherwise `main`, `master`, `prod` or `production`, otherwise the repository's default branch. Change the order with `BRANCH_PRIORITY` (comma-separated). In **Admin > Repositories** the **Branch read** column lets you choose any branch instead; saving re-reads that repository from the new branch and **replaces** what was stored from the old one. Branch lists refresh on every sync (or with **Discover repositories**).
+
 ### Scoring
 
 Default points: commit 1, PR opened 3, PR merged 5, review 4, review comment 1. Editable by the admin (applies to history immediately). Merge commits, bot accounts and self-reviews are ignored.
@@ -38,7 +47,7 @@ On every start the app connects to the database and creates/updates the schema. 
 | Command | What it does |
 | --- | --- |
 | `npm run migrate` | Creates/updates the schema only (idempotent). |
-| "Sync now" (admin) | Pulls real data from the configured platforms. |
+| "Sync now" / "Stop" (admin) | Pulls real data from the configured platforms; Stop halts a running sync at its next step (finished repositories keep their data). |
 
 ## Configuration
 
@@ -128,7 +137,7 @@ Start the app and use **Admin > Overview & sync > Sync now**. The sync history s
 
 ### Repositories missing?
 
-- **Admin > Overview & sync** has **Discover repositories** (refresh the repository list), **Sync now** (what is new), and **Full re-sync** (re-read a chosen window, e.g. 180 days). **Admin > Repositories** has a per-repository **Sync now**. All are safe to repeat; nothing is duplicated.
+- **Admin > Overview & sync** has **Discover repositories** (refresh the repository list), **Sync now** (what is new), and **Full re-sync** (re-read a chosen window: 30 days up to 5 years, or **All history**). **Admin > Repositories** has a per-repository **Sync now**. All are safe to repeat; nothing is duplicated.
 - **GitHub private repositories not listed?** The token cannot see them. For a fine-grained token, the **Resource owner** must be the organisation (not your user), **Repository access** must include those repositories, and an org owner must approve the token. For a classic token, use the `repo` scope and click **Configure SSO > Authorize** for the organisation. Then run **Discover repositories**.
 
 ## Notes and limits
