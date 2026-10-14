@@ -151,7 +151,7 @@ export class BitbucketProvider implements Provider {
       }
 
       // Approvals count as reviews; comments by someone other than the author count as review comments.
-      const activity = await this.paged(`${base}/pullrequests/${pr.id}/activity?pagelen=100`);
+      const activity = await this.paged(`${base}/pullrequests/${pr.id}/activity`);
       for (const item of activity) {
         if (item.approval) {
           const a = actorFromUser(item.approval.user);
