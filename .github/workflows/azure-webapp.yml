@@ -21,9 +21,14 @@ jobs:
         env:
           APP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
           PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          PROFILE_AS_VARIABLE: ${{ vars.AZURE_WEBAPP_PUBLISH_PROFILE }}
         run: |
           if [ -z "$APP_NAME" ]; then
             echo "::error::Repository VARIABLE AZURE_WEBAPP_NAME is empty or missing (Settings > Secrets and variables > Actions > Variables)."
+            exit 1
+          fi
+          if [ -n "$PROFILE_AS_VARIABLE" ]; then
+            echo "::error::AZURE_WEBAPP_PUBLISH_PROFILE is stored as a plain-text VARIABLE. It holds deployment credentials: delete the variable, reset the publish profile in Azure, and add the new one on the SECRETS tab."
             exit 1
           fi
           if [ -z "$PROFILE" ]; then
