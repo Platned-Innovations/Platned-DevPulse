@@ -131,7 +131,7 @@ async function Overview({ syncing }: { syncing: boolean }) {
                 {runs.map((r) => (
                   <tr key={r.id}>
                     <td className="num">{r.startedAt.toISOString().slice(0, 16).replace("T", " ")}</td>
-                    <td className="wrap-cell"><b>{r.label || "Incremental · new since last sync"}</b><div className="faint" style={{ fontSize: 12 }}>{r.trigger === "schedule" ? "automatic" : "manual"}</div></td>
+                    <td className="wrap-cell"><b>{r.label || <span className="muted">Not recorded</span>}</b><div className="faint" style={{ fontSize: 12 }}>{r.trigger === "schedule" ? "automatic" : "manual"}</div></td>
                     <td><span className={`status ${r.status}`}>{r.status}</span></td>
                     <td className="r num">{r.status === "running" && r.total > 0 ? `${r.repos} / ${r.total}` : r.repos}</td>
                     <td className="r num">{fmt(r.activities)}</td>
