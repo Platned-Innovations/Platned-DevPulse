@@ -81,7 +81,7 @@ export interface SyncRun {
   id: string;
   startedAt: Date;
   finishedAt: Date | null;
-  status: "running" | "success" | "partial" | "failed";
+  status: "running" | "success" | "partial" | "failed" | "cancelled";
   trigger: "manual" | "schedule";
   /** Human description of what the run does, e.g. "Full re-sync · 1 year". */
   label: string;

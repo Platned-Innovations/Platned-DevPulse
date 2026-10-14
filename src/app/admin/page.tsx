@@ -9,9 +9,10 @@ import { safe } from "@/lib/safe";
 import { ACTIVITY_LABELS } from "@/lib/scoring";
 import { autoBranch, effectiveBranch } from "@/lib/branches";
 import { getWeights } from "@/lib/stats";
+import { isCancelRequested } from "@/lib/cancel";
 import { isSyncing } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
-import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setBranchAction, setHiddenAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
+import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setBranchAction, setHiddenAction, stopSyncAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
 
 export const metadata = { title: "Admin" };
 
@@ -101,10 +102,19 @@ async function Overview({ syncing }: { syncing: boolean }) {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="row spread">
           <h2 style={{ margin: 0 }}>Sync</h2>
-          <form action={startSyncAction}>
-            <input type="hidden" name="mode" value="incremental" />
-            <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
-          </form>
+          <div className="row" style={{ gap: 8 }}>
+            <form action={startSyncAction}>
+              <input type="hidden" name="mode" value="incremental" />
+              <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
+            </form>
+            {(syncing || runs.some((r) => r.status === "running")) && (
+              <form action={stopSyncAction}>
+                <button className="danger" disabled={isCancelRequested()} title="Halts at the next step; finished repositories keep their data">
+                  {isCancelRequested() ? "Stopping…" : "Stop"}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <form action={startSyncAction} className="row" style={{ gap: 6 }}>

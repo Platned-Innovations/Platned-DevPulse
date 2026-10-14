@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { configuredPlatforms, syncConfig } from "./config";
 import { getStore, type Store } from "./db";
 import { effectiveBranch } from "./branches";
+import { resetCancel, SyncCancelled, throwIfCancelled } from "./cancel";
 import { clearStatsCache } from "./stats";
 import type { Provider, RemoteActor, RemoteRepo } from "./providers/types";
 import type { Activity, Developer, Identity, Platform, Repository, SyncRun } from "./types";
@@ -145,6 +146,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
   const store = await getStore();
   if (g.__devpulseSyncing) throw new Error("A sync is already running.");
   g.__devpulseSyncing = true;
+  resetCancel();
 
   // Runs left "running" by a crashed process can never finish.
   for (const r of await store.listSyncRuns(5)) {
@@ -172,6 +174,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
       try {
         remote = await provider.listRepos();
       } catch (e) {
+        if (e instanceof SyncCancelled) throw e;
         run.errors.push(`${provider.platform}: listing repositories failed - ${(e as Error).message}`);
         continue;
       }
@@ -201,6 +204,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
       await store.updateSyncRun(run.id, { total: run.total });
 
       for (const repo of known) {
+        throwIfCancelled();
         const rr = remoteById.get(repo.id);
         if (!rr) continue; // no longer visible to the token
         const startedAt = new Date();
@@ -242,18 +246,21 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           run.activities += activities.length;
           run.repos += 1;
         } catch (e) {
+          if (e instanceof SyncCancelled) throw e;
           run.errors.push(`${repo.fullName}: ${(e as Error).message}`);
         }
         await store.updateSyncRun(run.id, { repos: run.repos, activities: run.activities, total: run.total });
+        await store.setSetting("coverage", coverage); // keep progress even if the run is stopped later
       }
     }
     await store.setSetting("coverage", coverage);
     run.status = run.errors.length === 0 ? "success" : run.repos > 0 ? "partial" : "failed";
   } catch (e) {
     run.errors.push((e as Error).message);
-    run.status = "failed";
+    run.status = e instanceof SyncCancelled ? "cancelled" : "failed";
   } finally {
     run.finishedAt = new Date();
+    resetCancel();
     await store.updateSyncRun(run.id, { status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
     clearStatsCache();
     g.__devpulseSyncing = false;

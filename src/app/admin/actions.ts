@@ -8,6 +8,7 @@ import { getStore } from "@/lib/db";
 import { mergeDevelopers, unlinkIdentity } from "@/lib/identities";
 import { DEFAULT_WEIGHTS } from "@/lib/scoring";
 import { clearStatsCache } from "@/lib/stats";
+import { requestCancel } from "@/lib/cancel";
 import { isSyncing, runSync, type SyncOptions } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
 
@@ -47,6 +48,27 @@ export async function startSyncAction(form: FormData) {
   // Runs in the background; the admin page polls for progress.
   void runSync("manual", opts).catch((e) => console.error("[devpulse] sync failed:", e));
   back("overview", mode === "discover" ? "Looking for new repositories…" : mode === "full" ? "Full re-sync started." : "Sync started.");
+}
+
+/**
+ * Stops the running sync. It halts before the next API request; repositories already finished keep
+ * their data. If the row says "running" but no sync is active here (e.g. the app restarted), it is closed.
+ */
+export async function stopSyncAction() {
+  await requireAdmin();
+  if (isSyncing()) {
+    requestCancel();
+    back("overview", "Stopping… the sync halts at its next step.");
+  }
+  const store = await getStore();
+  let closed = 0;
+  for (const r of await store.listSyncRuns(10)) {
+    if (r.status === "running") {
+      await store.updateSyncRun(r.id, { status: "cancelled", finishedAt: new Date(), errors: [...r.errors, "Marked as stopped (no sync was active)"] });
+      closed++;
+    }
+  }
+  back("overview", closed ? "Marked the stuck run as stopped." : "No sync is running.");
 }
 
 /** Re-reads the whole look-back window for a single repository. */
