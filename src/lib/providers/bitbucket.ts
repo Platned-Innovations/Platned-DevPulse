@@ -49,7 +49,8 @@ export class BitbucketProvider implements Provider {
     const all: any[] = [];
     let next: string | null = url;
     while (next) {
-      const { data } = await getJson<any>(next, this.headers());
+      const page: { data: any } = await getJson<any>(next, this.headers());
+      const data = page.data;
       const values: any[] = data.values ?? [];
       all.push(...values);
       if (stop?.(values)) break;
