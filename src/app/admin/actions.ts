@@ -11,6 +11,13 @@ import { clearStatsCache } from "@/lib/stats";
 import { isSyncing, runSync, type SyncOptions } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
 
+/** "all" = everything (a 100-year window); otherwise a whole number of days. */
+const parseDays = (v: FormDataEntryValue | null): number | undefined => {
+  if (v === "all") return 36_500;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 36_500 ? n : undefined;
+};
+
 const back = (tab: string, msg?: string, error = false) =>
   redirect(`/admin?tab=${tab}${msg ? `&${error ? "error" : "ok"}=${encodeURIComponent(msg)}` : ""}`);
 
@@ -31,11 +38,10 @@ export async function logoutAction() {
 export async function startSyncAction(form: FormData) {
   await requireAdmin();
   const mode = String(form.get("mode") ?? "incremental");
-  const days = Number(form.get("days"));
   const opts: SyncOptions = {
     full: mode === "full",
     discoverOnly: mode === "discover",
-    lookbackDays: Number.isInteger(days) && days >= 1 && days <= 1825 ? days : undefined,
+    lookbackDays: parseDays(form.get("days")),
   };
   if (isSyncing()) back("overview", "A sync is already running.", true);
   // Runs in the background; the admin page polls for progress.
@@ -47,13 +53,12 @@ export async function startSyncAction(form: FormData) {
 export async function syncRepoAction(form: FormData) {
   await requireAdmin();
   const id = String(form.get("id") ?? "");
-  const days = Number(form.get("days"));
   if (isSyncing()) back("repos", "A sync is already running.", true);
   if (id) {
     void runSync("manual", {
       repoIds: [id],
       full: true,
-      lookbackDays: Number.isInteger(days) && days >= 1 && days <= 1825 ? days : undefined,
+      lookbackDays: parseDays(form.get("days")),
     }).catch((e) => console.error("[devpulse] repo sync failed:", e));
   }
   back("repos", "Repository sync started. Results appear under Overview & sync.");

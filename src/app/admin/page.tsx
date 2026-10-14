@@ -54,6 +54,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   );
 }
 
+/** History windows offered for manual syncs. */
+function WindowOptions({ current }: { current: number }) {
+  const days = [...new Set([30, 90, 180, 365, 730, 1825, current])].filter((d) => d < 36_500).sort((a, b) => a - b);
+  const label = (d: number) => (d % 365 === 0 && d >= 365 ? `${d / 365} year${d === 365 ? "" : "s"}` : `${d} days`);
+  return (
+    <>
+      {days.map((d) => (
+        <option key={d} value={d}>{label(d)}</option>
+      ))}
+      <option value="all">All history</option>
+    </>
+  );
+}
+
 async function Overview({ syncing }: { syncing: boolean }) {
   const res = await safe(async () => (await getStore()).listSyncRuns(10));
   if (!res.ok) return <SetupNotice error={res.error} />;
@@ -96,7 +110,7 @@ async function Overview({ syncing }: { syncing: boolean }) {
             <input type="hidden" name="mode" value="full" />
             <label className="muted" htmlFor="full-days">Full re-sync, last</label>
             <select id="full-days" name="days" defaultValue={String(lookbackDays)}>
-              {[...new Set([30, 90, 180, 365, lookbackDays])].sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
+              <WindowOptions current={lookbackDays} />
             </select>
             <button disabled={syncing || (!gh && !bb)} title="Re-reads the whole window for every enabled repository (safe: no duplicates)">Run</button>
           </form>
@@ -106,7 +120,7 @@ async function Overview({ syncing }: { syncing: boolean }) {
           </form>
         </div>
         <p className="faint" style={{ fontSize: 13 }}>
-          Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
+          <b>All history</b> reads every commit and pull request ever made, which can take a long time and many API calls (GitHub allows 5,000 per hour per token); it is safe to run again if it stops. Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
         </p>
         {!gh && !bb && <p className="error-text">No platform is configured. Set GitHub and/or Bitbucket variables.</p>}
         {runs.length === 0 ? <p className="muted">No sync has run yet.</p> : (
@@ -275,8 +289,11 @@ async function Repos() {
                     </form>
                   </td>
                   <td>
-                    <form action={syncRepoAction}>
+                    <form action={syncRepoAction} className="row" style={{ gap: 6 }}>
                       <input type="hidden" name="id" value={r.id} />
+                      <select name="days" defaultValue="90" aria-label="History window" disabled={!r.enabled}>
+                        <WindowOptions current={90} />
+                      </select>
                       <button disabled={!r.enabled || isSyncing()} title={r.enabled ? "Re-read this repository's recent history now" : "Enable the repository first"}>Sync now</button>
                     </form>
                   </td>
