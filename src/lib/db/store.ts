@@ -29,6 +29,8 @@ export interface Store {
   setRepositoryEnabled(id: string, enabled: boolean): Promise<void>;
   markRepositorySynced(id: string, at: Date): Promise<void>;
 
+  /** True when no activity has ever been stored (fresh database). */
+  isEmpty(): Promise<boolean>;
   upsertActivities(items: Activity[]): Promise<void>;
   queryActivities(filter: ActivityFilter): Promise<Activity[]>;
 

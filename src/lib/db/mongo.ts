@@ -97,6 +97,9 @@ export class MongoStore implements Store {
     await this.col("repositories").updateOne({ _id: id }, { $set: { lastSyncedAt: at } });
   }
 
+  async isEmpty() {
+    return (await this.col("activities").findOne({}, { projection: { _id: 1 } })) === null;
+  }
   async upsertActivities(items: Activity[]) {
     const size = 1000;
     for (let s = 0; s < items.length; s += size) {

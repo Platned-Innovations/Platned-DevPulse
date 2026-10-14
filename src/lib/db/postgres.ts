@@ -216,6 +216,9 @@ export class PostgresStore implements Store {
     await this.pool.query("UPDATE repositories SET last_synced_at=$2 WHERE id=$1", [id, at]);
   }
 
+  async isEmpty() {
+    return (await this.pool.query("SELECT 1 FROM activities LIMIT 1")).rowCount === 0;
+  }
   async upsertActivities(items: Activity[]) {
     const size = 500;
     for (let s = 0; s < items.length; s += size) {

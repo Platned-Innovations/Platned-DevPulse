@@ -31,7 +31,22 @@ npm run dev                    # development: http://localhost:3000
 npm run serve                  # production: build + start
 ```
 
-No credentials yet? Point the DB variable at an empty database and run `npm run seed` to load fictional demo data (three people appear on both platforms so you can try merging).
+### Automatic seeding, manual seeding and migration
+
+On every start the app connects to the database and creates/updates the schema. If the database has **no activity yet** it fills itself before you need to do anything:
+
+- GitHub and/or Bitbucket credentials configured: the **first real sync** starts in the background.
+- No platform configured: **fictional demo data** is loaded, so the UI is not blank (three people appear on both platforms so you can try merging). Real credentials never trigger demo data.
+
+Set `AUTO_SEED=false` to turn this off. The manual options remain:
+
+| Command | What it does |
+| --- | --- |
+| `npm run migrate` | Creates/updates the schema only (idempotent). |
+| `npm run seed` | Loads the demo data (safe to re-run). |
+| "Sync now" (admin) | Pulls real data from the configured platforms. |
+
+Demo data is not removed automatically when you later add credentials; start from an empty database (or set `AUTO_SEED=false`) if you never want it.
 
 ## Configuration
 
