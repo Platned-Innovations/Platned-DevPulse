@@ -85,6 +85,8 @@ export interface SyncRun {
   trigger: "manual" | "schedule";
   /** Human description of what the run does, e.g. "Full re-sync · 1 year". */
   label: string;
+  /** How much history the run reads: "90 days", "all history", "since last sync", ... */
+  window: string;
   /** Repositories the run intends to process (for progress). */
   total: number;
   repos: number;

@@ -151,6 +151,12 @@ const windowLabel = (d: number) => (d >= 36_500 ? "all history" : d >= 365 && d 
 /** Window wording for a start date: "all history" or "90 days". */
 const windowSince = (since: Date) => (since.getFullYear() < 1990 ? "all history" : windowLabel(Math.max(1, Math.round((Date.now() - since.getTime()) / DAY))));
 
+/** How much history a run reads, shown in its own column. */
+function describeWindow(opts: SyncOptions, lookbackDays: number): string {
+  if (opts.discoverOnly) return "–";
+  return opts.full || opts.repoIds?.length ? windowLabel(lookbackDays) : "since last sync";
+}
+
 function describeRun(opts: SyncOptions, lookbackDays: number): string {
   if (opts.discoverOnly) return "Discover repositories";
   const n = opts.repoIds?.length ?? 0;
@@ -173,7 +179,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         await store.updateSyncRun(r.id, { status: "failed", finishedAt: new Date(), errors: [...r.errors, "Interrupted (process restarted)"] });
       }
     }
-    run = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
+    run = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), window: describeWindow(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
     await store.createSyncRun(run);
     g.__devpulseRunId = run.id;
   } catch (e) {
@@ -258,9 +264,17 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           const reasons = [...new Set(rereads.map((r) => r.reason))].join(", ");
           const widest = new Date(Math.min(...rereads.map((r) => r.since.getTime())));
           const label = `${run.label.split(" + ")[0]} + ${rereads.length} ${rereads.length === 1 ? "repository" : "repositories"} read in full (${reasons}, ${windowSince(widest)})`;
-          if (label !== run.label) {
+          // Full runs: the widest of the chosen window and what re-read repositories needed.
+          const baseDays = opts.full || opts.repoIds?.length ? lookbackDays : 0;
+          const reachSince = baseDays ? new Date(Math.min(widest.getTime(), Date.now() - baseDays * DAY)) : widest;
+          const windowText =
+            opts.full || opts.repoIds?.length
+              ? windowSince(reachSince)
+              : `since last sync; ${rereads.length} ${rereads.length === 1 ? "repository" : "repositories"}: ${windowSince(widest)}`;
+          if (label !== run.label || windowText !== run.window) {
             run.label = label;
-            await store.updateSyncRun(run.id, { label });
+            run.window = windowText;
+            await store.updateSyncRun(run.id, { label, window: windowText });
           }
         }
         const position = `[${run.repos + run.errors.length + 1}/${run.total}]`;
@@ -324,7 +338,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     setNow("");
     logEvent(`Sync ${run.status}: ${run.repos} repositories, ${run.activities} activities${run.errors.length ? `, ${run.errors.length} problem(s)` : ""}`, run.status === "success" ? "ok" : run.status === "failed" ? "error" : "warn");
     try {
-      await store.updateSyncRun(run.id, { label: run.label, status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
+      await store.updateSyncRun(run.id, { label: run.label, window: run.window, status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
     } catch (e) {
       console.error("[devpulse] could not save the sync result:", (e as Error).message);
     }
