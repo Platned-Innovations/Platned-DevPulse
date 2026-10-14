@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -H 0.0.0.0",
+    "start": "node scripts/start.cjs",
     "serve": "npm run build && npm run start",
     "build:standalone": "node scripts/build-standalone.mjs",
     "typecheck": "tsc --noEmit",
