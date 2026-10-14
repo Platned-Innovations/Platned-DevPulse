@@ -8,7 +8,7 @@ import { getStore } from "@/lib/db";
 import { mergeDevelopers, unlinkIdentity } from "@/lib/identities";
 import { DEFAULT_WEIGHTS } from "@/lib/scoring";
 import { clearStatsCache } from "@/lib/stats";
-import { isSyncing, runSync } from "@/lib/sync";
+import { isSyncing, runSync, type SyncOptions } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
 
 const back = (tab: string, msg?: string, error = false) =>
@@ -27,13 +27,36 @@ export async function logoutAction() {
   redirect("/");
 }
 
-export async function startSyncAction() {
+/** Starts a background sync. mode: incremental (default) | full (re-read the look-back window) | discover (refresh repo list). */
+export async function startSyncAction(form: FormData) {
   await requireAdmin();
-  if (!isSyncing()) {
-    // Runs in the background; the admin page polls for progress.
-    void runSync("manual").catch((e) => console.error("[devpulse] sync failed:", e));
+  const mode = String(form.get("mode") ?? "incremental");
+  const days = Number(form.get("days"));
+  const opts: SyncOptions = {
+    full: mode === "full",
+    discoverOnly: mode === "discover",
+    lookbackDays: Number.isInteger(days) && days >= 1 && days <= 1825 ? days : undefined,
+  };
+  if (isSyncing()) back("overview", "A sync is already running.", true);
+  // Runs in the background; the admin page polls for progress.
+  void runSync("manual", opts).catch((e) => console.error("[devpulse] sync failed:", e));
+  back("overview", mode === "discover" ? "Looking for new repositories…" : mode === "full" ? "Full re-sync started." : "Sync started.");
+}
+
+/** Re-reads the whole look-back window for a single repository. */
+export async function syncRepoAction(form: FormData) {
+  await requireAdmin();
+  const id = String(form.get("id") ?? "");
+  const days = Number(form.get("days"));
+  if (isSyncing()) back("repos", "A sync is already running.", true);
+  if (id) {
+    void runSync("manual", {
+      repoIds: [id],
+      full: true,
+      lookbackDays: Number.isInteger(days) && days >= 1 && days <= 1825 ? days : undefined,
+    }).catch((e) => console.error("[devpulse] repo sync failed:", e));
   }
-  back("overview");
+  back("repos", "Repository sync started. Results appear under Overview & sync.");
 }
 
 export async function mergeAction(form: FormData) {

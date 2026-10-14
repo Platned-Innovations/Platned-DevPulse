@@ -90,7 +90,18 @@ class IdentityResolver {
   }
 }
 
-export async function runSync(trigger: SyncRun["trigger"]): Promise<SyncRun> {
+export interface SyncOptions {
+  /** Only sync these repositories (ids like "github:123"). */
+  repoIds?: string[];
+  /** Ignore each repository's sync cursor and re-read the whole look-back window. */
+  full?: boolean;
+  /** Look-back window for full / first syncs (default SYNC_LOOKBACK_DAYS). */
+  lookbackDays?: number;
+  /** Only refresh the repository list; do not read activity. */
+  discoverOnly?: boolean;
+}
+
+export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {}): Promise<SyncRun> {
   const store = await getStore();
   if (g.__devpulseSyncing) throw new Error("A sync is already running.");
   g.__devpulseSyncing = true;
@@ -106,9 +117,13 @@ export async function runSync(trigger: SyncRun["trigger"]): Promise<SyncRun> {
   await store.createSyncRun(run);
 
   try {
-    const providers = await buildProviders();
+    let providers = await buildProviders();
+    if (opts.repoIds?.length) {
+      const wanted = new Set(opts.repoIds.map((id) => id.split(":")[0]));
+      providers = providers.filter((p) => wanted.has(p.platform));
+    }
     if (providers.length === 0) run.errors.push("No platform configured (set GitHub and/or Bitbucket credentials).");
-    const { lookbackDays } = syncConfig();
+    const lookbackDays = opts.lookbackDays ?? syncConfig().lookbackDays;
     const resolver = new IdentityResolver(store, await store.listIdentities());
 
     for (const provider of providers) {
@@ -129,7 +144,13 @@ export async function runSync(trigger: SyncRun["trigger"]): Promise<SyncRun> {
         };
         await store.upsertRepository(repo);
       }
-      const known = (await store.listRepositories()).filter((r) => r.platform === provider.platform && r.enabled);
+      if (opts.discoverOnly) {
+        run.repos += remote.length;
+        continue;
+      }
+      const known = (await store.listRepositories()).filter(
+        (r) => r.platform === provider.platform && r.enabled && (!opts.repoIds || opts.repoIds.includes(r.id)),
+      );
       const remoteById = new Map(remote.map((r) => [`${provider.platform}:${r.externalId}`, r]));
 
       for (const repo of known) {
@@ -137,7 +158,7 @@ export async function runSync(trigger: SyncRun["trigger"]): Promise<SyncRun> {
         if (!rr) continue; // no longer visible to the token
         const startedAt = new Date();
         // Re-read a 2-day overlap so late-arriving reviews/merges are not missed.
-        const since = repo.lastSyncedAt ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY) : new Date(Date.now() - lookbackDays * DAY);
+        const since = repo.lastSyncedAt && !opts.full ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY) : new Date(Date.now() - lookbackDays * DAY);
         try {
           const items = await provider.fetchActivities(rr, since);
           const activities: Activity[] = [];

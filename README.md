@@ -126,6 +126,11 @@ BITBUCKET_ACCESS_TOKEN=<token>
 
 Start the app and use **Admin > Overview & sync > Sync now**. The sync history shows errors: 401 usually means a wrong token or username, 403/404 means missing scopes or no access to that repository.
 
+### Repositories missing?
+
+- **Admin > Overview & sync** has **Discover repositories** (refresh the repository list), **Sync now** (what is new), and **Full re-sync** (re-read a chosen window, e.g. 180 days). **Admin > Repositories** has a per-repository **Sync now**. All are safe to repeat; nothing is duplicated.
+- **GitHub private repositories not listed?** The token cannot see them. For a fine-grained token, the **Resource owner** must be the organisation (not your user), **Repository access** must include those repositories, and an org owner must approve the token. For a classic token, use the `repo` scope and click **Configure SSO > Authorize** for the organisation. Then run **Discover repositories**.
+
 ## Notes and limits
 
 - Rankings are computed in the app from the activity table (with a 60-second cache), which suits company-scale data (hundreds of developers, hundreds of thousands of events).

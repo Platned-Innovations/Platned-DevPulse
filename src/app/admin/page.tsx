@@ -10,7 +10,7 @@ import { ACTIVITY_LABELS } from "@/lib/scoring";
 import { getWeights } from "@/lib/stats";
 import { isSyncing } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
-import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setHiddenAction, setRepoEnabledAction, startSyncAction, unlinkAction } from "./actions";
+import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setHiddenAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
 
 export const metadata = { title: "Admin" };
 
@@ -87,9 +87,27 @@ async function Overview({ syncing }: { syncing: boolean }) {
         <div className="row spread">
           <h2 style={{ margin: 0 }}>Sync</h2>
           <form action={startSyncAction}>
+            <input type="hidden" name="mode" value="incremental" />
             <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
           </form>
         </div>
+        <div className="row" style={{ marginTop: 12 }}>
+          <form action={startSyncAction} className="row" style={{ gap: 6 }}>
+            <input type="hidden" name="mode" value="full" />
+            <label className="muted" htmlFor="full-days">Full re-sync, last</label>
+            <select id="full-days" name="days" defaultValue={String(lookbackDays)}>
+              {[...new Set([30, 90, 180, 365, lookbackDays])].sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
+            </select>
+            <button disabled={syncing || (!gh && !bb)} title="Re-reads the whole window for every enabled repository (safe: no duplicates)">Run</button>
+          </form>
+          <form action={startSyncAction}>
+            <input type="hidden" name="mode" value="discover" />
+            <button disabled={syncing || (!gh && !bb)} title="Looks for new repositories without reading their activity">Discover repositories</button>
+          </form>
+        </div>
+        <p className="faint" style={{ fontSize: 13 }}>
+          Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
+        </p>
         {!gh && !bb && <p className="error-text">No platform is configured. Set GitHub and/or Bitbucket variables.</p>}
         {runs.length === 0 ? <p className="muted">No sync has run yet.</p> : (
           <div className="table-wrap">
@@ -231,7 +249,7 @@ async function Repos() {
       {res.data.length === 0 ? <p className="muted">None discovered yet. Run a sync.</p> : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Tracking</th></tr></thead>
+            <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Tracking</th><th>Manual sync</th></tr></thead>
             <tbody>
               {res.data.map((r) => (
                 <tr key={r.id}>
@@ -243,6 +261,12 @@ async function Repos() {
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="enabled" value={String(!r.enabled)} />
                       <button>{r.enabled ? "Enabled - disable" : "Disabled - enable"}</button>
+                    </form>
+                  </td>
+                  <td>
+                    <form action={syncRepoAction}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <button disabled={!r.enabled || isSyncing()} title={r.enabled ? "Re-read this repository's recent history now" : "Enable the repository first"}>Sync now</button>
                     </form>
                   </td>
                 </tr>
