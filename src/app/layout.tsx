@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { appName } from "@/lib/config";
 import { Nav } from "@/components/Nav";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -14,18 +15,13 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const name = appName();
+  // The Light/Dark choice lives in a cookie, so the server renders the right theme from the first byte (no flash, no script).
+  const saved = (await cookies()).get("devpulse-theme")?.value;
+  const theme = saved === "light" || saved === "dark" ? saved : undefined;
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Apply a saved Light/Dark choice before first paint (no flash). Constant text, no user input. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: 'try{var t=localStorage.getItem("devpulse-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}',
-          }}
-        />
-      </head>
+    <html lang="en" data-theme={theme}>
       <body>
         <header className="top">
           <div className="wrap">
