@@ -59,11 +59,21 @@ export class BitbucketProvider implements Provider {
     return all;
   }
 
+  /** Workspace > project > repository: with BITBUCKET_PROJECTS set, only repos in those projects are kept. */
+  private inSelectedProject(workspace: string, projectKey: string | undefined): boolean {
+    const wanted = this.cfg.projectFilter;
+    if (wanted.length === 0) return true;
+    const key = (projectKey ?? "").toUpperCase();
+    const ws = workspace.toUpperCase();
+    return wanted.some((p) => (p.includes("/") ? p === `${ws}/${key}` : p === key));
+  }
+
   async listRepos(): Promise<RemoteRepo[]> {
     const out: RemoteRepo[] = [];
     for (const ws of this.cfg.workspaces) {
       const repos = await this.paged(`${this.cfg.apiUrl}/repositories/${encodeURIComponent(ws)}?pagelen=100`);
       for (const r of repos) {
+        if (!this.inSelectedProject(ws, r.project?.key)) continue;
         if (this.cfg.repoFilter.length && !this.cfg.repoFilter.some((f) => f === r.full_name || f === r.slug)) continue;
         out.push({
           externalId: String(r.uuid),

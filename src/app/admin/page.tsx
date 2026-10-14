@@ -73,7 +73,7 @@ async function Overview({ syncing }: { syncing: boolean }) {
         <div className="card" style={{ margin: 0 }}>
           <h2>Platforms</h2>
           <p><span className={`dot github`} /> GitHub: {gh ? <b>{gh.orgs.join(", ")}</b> : <span className="muted">not configured</span>}</p>
-          <p><span className={`dot bitbucket`} /> Bitbucket: {bb ? <b>{bb.workspaces.join(", ")}</b> : <span className="muted">not configured</span>}</p>
+          <p><span className={`dot bitbucket`} /> Bitbucket: {bb ? <><b>{bb.workspaces.join(", ")}</b>{bb.projectFilter.length > 0 && <span className="muted"> · projects {bb.projectFilter.join(", ")}</span>}</> : <span className="muted">not configured</span>}</p>
           {gh && bb && <p className="faint" style={{ fontSize: 13 }}>Both configured: stats are summed per developer.</p>}
         </div>
         <div className="card" style={{ margin: 0 }}>

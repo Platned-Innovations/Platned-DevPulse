@@ -57,7 +57,7 @@ See [.env.example](.env.example) for every variable.
 | Branding | `COMPANY_NAME` |
 | Database (**one of**) | `POSTGRES_URL` **or** `MONGODB_URI` (PostgreSQL wins if both are set) |
 | GitHub | `GITHUB_TOKEN`, `GITHUB_ORGS` (optional `GITHUB_REPOS`, `GITHUB_API_URL`) |
-| Bitbucket Cloud | `BITBUCKET_WORKSPACES` + (`BITBUCKET_USERNAME` + `BITBUCKET_APP_PASSWORD`) or `BITBUCKET_ACCESS_TOKEN` |
+| Bitbucket Cloud | `BITBUCKET_WORKSPACES` + (`BITBUCKET_USERNAME` + `BITBUCKET_APP_PASSWORD`) or `BITBUCKET_ACCESS_TOKEN`; optional `BITBUCKET_PROJECTS`, `BITBUCKET_REPOS` |
 | Sync | `SYNC_INTERVAL_MINUTES` (0 = off), `SYNC_LOOKBACK_DAYS` |
 | Admin | `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SESSION_SECRET` (16+ chars) |
 
@@ -109,6 +109,15 @@ BITBUCKET_APP_PASSWORD=<API token>     # BITBUCKET_API_TOKEN is accepted as an a
 ```
 
 The workspace slug is the part of the URL after `bitbucket.org/`.
+
+**Narrowing the scope (workspace > project > repositories).** By default every repository in the workspace is tracked. Optionally limit it:
+
+```
+BITBUCKET_PROJECTS=PLAT,WEB          # project keys; or workspace-qualified: acme/PLAT
+BITBUCKET_REPOS=api-gateway,billing  # optional: only these repos (within the selected projects)
+```
+
+A project key is the short uppercase key shown in the project's URL and settings. Each filter only narrows the previous one.
 
 **Option B: workspace access token (not tied to a person)**
 

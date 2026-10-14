@@ -43,6 +43,8 @@ export function bitbucketConfig() {
     username,
     appPassword,
     apiUrl: (process.env.BITBUCKET_API_URL ?? "https://api.bitbucket.org/2.0").replace(/\/$/, ""),
+    /** Optional project keys: "KEY" (any configured workspace) or "workspace/KEY". */
+    projectFilter: list(process.env.BITBUCKET_PROJECTS).map((p) => p.toUpperCase()),
     repoFilter: list(process.env.BITBUCKET_REPOS),
   };
 }
