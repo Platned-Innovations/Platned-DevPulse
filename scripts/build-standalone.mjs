@@ -32,7 +32,5 @@ writeFileSync(
 );
 // Kudu reads this from the package root: skip the server-side npm install/build (it is already built).
 // On small plans that install is the single biggest CPU and disk cost.
-writeFileSync("dist/.deployment", "[config]
-SCM_DO_BUILD_DURING_DEPLOYMENT=false
-");
+writeFileSync("dist/.deployment", ["[config]", "SCM_DO_BUILD_DURING_DEPLOYMENT=false", ""].join("\n"));
 console.log("Standalone build ready in ./dist  ->  cd dist && npm start");
