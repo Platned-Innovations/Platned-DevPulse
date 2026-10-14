@@ -126,14 +126,14 @@ async function Overview({ syncing }: { syncing: boolean }) {
         {runs.length === 0 ? <p className="muted">No sync has run yet.</p> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Started (UTC)</th><th>Trigger</th><th>Status</th><th className="r">Repos</th><th className="r">Activities</th><th>Notes</th></tr></thead>
+              <thead><tr><th>Started (UTC)</th><th>Type</th><th>Status</th><th className="r">Repositories</th><th className="r">Activities</th><th>Notes</th></tr></thead>
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id}>
                     <td className="num">{r.startedAt.toISOString().slice(0, 16).replace("T", " ")}</td>
-                    <td>{r.trigger}</td>
+                    <td className="wrap-cell"><b>{r.label || "Incremental · new since last sync"}</b><div className="faint" style={{ fontSize: 12 }}>{r.trigger === "schedule" ? "automatic" : "manual"}</div></td>
                     <td><span className={`status ${r.status}`}>{r.status}</span></td>
-                    <td className="r num">{r.repos}</td>
+                    <td className="r num">{r.status === "running" && r.total > 0 ? `${r.repos} / ${r.total}` : r.repos}</td>
                     <td className="r num">{fmt(r.activities)}</td>
                     <td className="wrap-cell muted" style={{ maxWidth: 420 }}>{r.errors.slice(0, 3).join(" · ")}{r.errors.length > 3 ? ` (+${r.errors.length - 3} more)` : ""}</td>
                   </tr>

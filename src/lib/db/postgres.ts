@@ -62,10 +62,14 @@ CREATE TABLE IF NOT EXISTS sync_runs (
   finished_at TIMESTAMPTZ,
   status TEXT NOT NULL,
   trigger TEXT NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  total INTEGER NOT NULL DEFAULT 0,
   repos INTEGER NOT NULL DEFAULT 0,
   activities INTEGER NOT NULL DEFAULT 0,
   errors JSONB NOT NULL DEFAULT '[]'
 );
+ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
+ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS total INTEGER NOT NULL DEFAULT 0;
 `;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -119,6 +123,8 @@ const run = (r: any): SyncRun => ({
   finishedAt: r.finished_at,
   status: r.status,
   trigger: r.trigger,
+  label: r.label ?? "",
+  total: r.total ?? 0,
   repos: r.repos,
   activities: r.activities,
   errors: r.errors ?? [],
@@ -135,6 +141,7 @@ const COLS: Record<string, string> = {
   finishedAt: "finished_at",
   status: "status",
   repos: "repos",
+  total: "total",
   activities: "activities",
   errors: "errors",
 };
@@ -280,8 +287,8 @@ export class PostgresStore implements Store {
 
   async createSyncRun(r: SyncRun) {
     await this.pool.query(
-      "INSERT INTO sync_runs (id, started_at, finished_at, status, trigger, repos, activities, errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-      [r.id, r.startedAt, r.finishedAt, r.status, r.trigger, r.repos, r.activities, JSON.stringify(r.errors)],
+      "INSERT INTO sync_runs (id, started_at, finished_at, status, trigger, label, total, repos, activities, errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+      [r.id, r.startedAt, r.finishedAt, r.status, r.trigger, r.label, r.total, r.repos, r.activities, JSON.stringify(r.errors)],
     );
   }
   updateSyncRun(id: string, p: Partial<SyncRun>) {

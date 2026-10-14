@@ -76,6 +76,10 @@ export interface SyncRun {
   finishedAt: Date | null;
   status: "running" | "success" | "partial" | "failed";
   trigger: "manual" | "schedule";
+  /** Human description of what the run does, e.g. "Full re-sync · 1 year". */
+  label: string;
+  /** Repositories the run intends to process (for progress). */
+  total: number;
   repos: number;
   activities: number;
   errors: string[];

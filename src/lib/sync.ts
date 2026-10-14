@@ -130,6 +130,16 @@ export interface SyncOptions {
   discoverOnly?: boolean;
 }
 
+const windowLabel = (d: number) => (d >= 36_500 ? "all history" : d >= 365 && d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : `${d} days`);
+
+function describeRun(opts: SyncOptions, lookbackDays: number): string {
+  if (opts.discoverOnly) return "Discover repositories";
+  const n = opts.repoIds?.length ?? 0;
+  if (n > 0) return `${n === 1 ? "Single repository" : `${n} repositories`} · full re-sync · ${windowLabel(lookbackDays)}`;
+  if (opts.full) return `Full re-sync · ${windowLabel(lookbackDays)}`;
+  return "Incremental · new since last sync";
+}
+
 export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {}): Promise<SyncRun> {
   const store = await getStore();
   if (g.__devpulseSyncing) throw new Error("A sync is already running.");
@@ -142,7 +152,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
     }
   }
 
-  const run: SyncRun = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, repos: 0, activities: 0, errors: [] };
+  const run: SyncRun = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
   await store.createSyncRun(run);
 
   try {
@@ -176,12 +186,16 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
       }
       if (opts.discoverOnly) {
         run.repos += remote.length;
+        run.total = run.repos;
+        await store.updateSyncRun(run.id, { repos: run.repos, total: run.total });
         continue;
       }
       const known = (await store.listRepositories()).filter(
         (r) => r.platform === provider.platform && r.enabled && (!opts.repoIds || opts.repoIds.includes(r.id)),
       );
       const remoteById = new Map(remote.map((r) => [`${provider.platform}:${r.externalId}`, r]));
+      run.total += known.filter((r) => remoteById.has(r.id)).length;
+      await store.updateSyncRun(run.id, { total: run.total });
 
       for (const repo of known) {
         const rr = remoteById.get(repo.id);
@@ -215,7 +229,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         } catch (e) {
           run.errors.push(`${repo.fullName}: ${(e as Error).message}`);
         }
-        await store.updateSyncRun(run.id, { repos: run.repos, activities: run.activities });
+        await store.updateSyncRun(run.id, { repos: run.repos, activities: run.activities, total: run.total });
       }
     }
     await store.setSetting("coverage", coverage);
