@@ -214,3 +214,11 @@ body:has(.fill) main { padding-bottom: 12px; }
 .fill .card.stat { padding: 10px 14px; }
 .fill .stat .k { font-size: 12px; }
 @media (max-height: 800px) { .fill .page-head p { display: none; } }
+
+/* Tiles in a grid are laid out by the grid gap, not by the stacked-card margin (which pushed tiles 2-4 down). */
+.grid > .card, .grid > .card + .card { margin-top: 0; }
+/* A table that shows all its rows and lets the page scroll instead (horizontal scroll only if the screen is narrow). */
+.table-wrap.open { max-height: none; overflow-y: visible; overflow-x: auto; }
+.table-wrap.open thead th { position: static; box-shadow: none; }
+.table-wrap.open th, .table-wrap.open td { padding-left: 7px; padding-right: 7px; }
+.table-wrap.open td:first-child, .table-wrap.open th:first-child { padding-left: 4px; }

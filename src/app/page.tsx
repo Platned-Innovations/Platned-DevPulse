@@ -19,7 +19,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
   const withQuery = (id: string) => `/developers/${id}${filters.period === "month" && !filters.offset ? "" : `?period=${filters.period}&offset=${filters.offset}`}`;
 
   return (
-    <div className="fill">
+    <>
       <div className="page-head">
         <div>
           <h1>{appName()} Leaderboard</h1>
@@ -66,8 +66,8 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
             })}
           </div>
 
-          <div className="card grow">
-            <div className="table-wrap">
+          <div className="card">
+            <div className="table-wrap open">
               <table>
                 <thead>
                   <tr>
@@ -115,6 +115,6 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
