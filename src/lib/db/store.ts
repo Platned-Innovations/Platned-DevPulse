@@ -33,6 +33,8 @@ export interface Store {
   isEmpty(): Promise<boolean>;
   upsertActivities(items: Activity[]): Promise<void>;
   queryActivities(filter: ActivityFilter): Promise<Activity[]>;
+  /** Ids of identities that have at least one activity in the given repositories. */
+  listIdentityIdsWithActivity(repoIds: string[]): Promise<string[]>;
 
   getSetting<T>(key: string): Promise<T | null>;
   setSetting(key: string, value: unknown): Promise<void>;

@@ -120,6 +120,11 @@ export class MongoStore implements Store {
     return (await this.col("activities").find(q).sort({ occurredAt: -1 }).toArray()).map((d) => out<Activity>(d));
   }
 
+  async listIdentityIdsWithActivity(repoIds: string[]) {
+    if (!repoIds.length) return [];
+    return (await this.col("activities").distinct("identityId", { repoId: { $in: repoIds } })) as string[];
+  }
+
   async getSetting<T>(key: string) {
     const d = await this.col("settings").findOne({ _id: key });
     return d ? (d.value as T) : null;

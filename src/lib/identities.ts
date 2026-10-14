@@ -8,9 +8,18 @@ export interface DeveloperWithIdentities {
   identities: Identity[];
 }
 
+/**
+ * Developers for the admin screens. A developer is listed only if at least one of their
+ * accounts has activity in an enabled repository, so people who appear solely in disabled
+ * repositories are left out. (Developers hidden from rankings are still listed so they can be unhidden.)
+ */
 export async function listDevelopersWithIdentities(): Promise<DeveloperWithIdentities[]> {
   const store = await getStore();
-  const [devs, idents] = await Promise.all([store.listDevelopers(), store.listIdentities()]);
+  const enabledRepoIds = (await store.listRepositories()).filter((r) => r.enabled).map((r) => r.id);
+  const [devs, allIdents, activeIds] = await Promise.all([store.listDevelopers(), store.listIdentities(), store.listIdentityIdsWithActivity(enabledRepoIds)]);
+  const active = new Set(activeIds);
+  const visibleDevs = new Set(allIdents.filter((i) => active.has(i.id)).map((i) => i.developerId));
+  const idents = allIdents.filter((i) => visibleDevs.has(i.developerId));
   const by = new Map<string, Identity[]>();
   for (const i of idents) (by.get(i.developerId) ?? by.set(i.developerId, []).get(i.developerId)!).push(i);
   return devs

@@ -257,6 +257,12 @@ export class PostgresStore implements Store {
     return (await this.pool.query(sql, params)).rows.map(act);
   }
 
+  async listIdentityIdsWithActivity(repoIds: string[]) {
+    if (!repoIds.length) return [];
+    const r = await this.pool.query("SELECT DISTINCT identity_id FROM activities WHERE repo_id = ANY($1)", [repoIds]);
+    return r.rows.map((x: { identity_id: string }) => x.identity_id);
+  }
+
   async getSetting<T>(key: string) {
     const r = await this.pool.query("SELECT value FROM settings WHERE key=$1", [key]);
     return r.rows[0] ? (r.rows[0].value as T) : null;
