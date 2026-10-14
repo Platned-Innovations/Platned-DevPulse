@@ -86,7 +86,7 @@ export class GitHubProvider implements Provider {
     return out;
   }
 
-  async fetchActivities(repo: RemoteRepo, since: Date, branch: string | null): Promise<RemoteActivity[]> {
+  async fetchActivities(repo: RemoteRepo, since: Date, branch: string | null, log: (message: string) => void = () => {}): Promise<RemoteActivity[]> {
     const base = `${this.cfg.apiUrl}/repos/${repo.fullName}`;
     const out: RemoteActivity[] = [];
     const sinceIso = since.toISOString();
@@ -98,6 +98,7 @@ export class GitHubProvider implements Provider {
       if (e instanceof HttpError && e.status === 409) return [] as any[];
       throw e;
     });
+    log(`${commits.length} commits found on ${branch ?? "the default branch"}`);
     for (const c of commits) {
       if ((c.parents?.length ?? 0) > 1) continue;
       let actor = actorFromUser(c.author);
@@ -138,8 +139,11 @@ export class GitHubProvider implements Provider {
       (page) => page.length > 0 && page.every((p) => new Date(p.updated_at) < since),
     );
     const recent = prs.filter((p) => new Date(p.updated_at) >= since);
+    log(`${recent.length} pull requests to inspect`);
+    let inspected = 0;
 
     await mapLimit(recent, 4, async (pr) => {
+      log(`pull request #${pr.number} (${++inspected}/${recent.length}): ${String(pr.title ?? "").slice(0, 80)}`);
       const prUrl = pr.html_url as string;
       const author = actorFromUser(pr.user);
       const title = String(pr.title ?? "").slice(0, 200);
@@ -170,6 +174,7 @@ export class GitHubProvider implements Provider {
       }
     });
 
+    log("reading review comments");
     // Inline review comments, only on the pull requests above.
     const prNumbers = new Set(recent.map((p) => p.number as number));
     const comments = await this.paged<any>(`${base}/pulls/comments?per_page=100&sort=created&direction=desc&since=${sinceIso}`);

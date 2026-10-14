@@ -4,6 +4,7 @@ import { getStore, type Store } from "./db";
 import { effectiveBranch } from "./branches";
 import { resetCancel, SyncCancelled, throwIfCancelled } from "./cancel";
 import { clearStatsCache } from "./stats";
+import { logEvent, resetLog, setNow } from "./synclog";
 import type { Provider, RemoteActor, RemoteRepo } from "./providers/types";
 import type { Activity, Developer, Identity, Platform, Repository, SyncRun } from "./types";
 
@@ -157,6 +158,9 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
 
   const run: SyncRun = { id: randomUUID(), startedAt: new Date(), finishedAt: null, status: "running", trigger, label: describeRun(opts, opts.lookbackDays ?? syncConfig().lookbackDays), total: 0, repos: 0, activities: 0, errors: [] };
   await store.createSyncRun(run);
+  resetLog();
+  logEvent(`Sync started: ${run.label} (${trigger === "schedule" ? "automatic" : "manual"})`);
+  setNow("Starting…");
 
   try {
     let providers = await buildProviders();
@@ -171,11 +175,15 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
 
     for (const provider of providers) {
       let remote: RemoteRepo[];
+      const pname = provider.platform === "github" ? "GitHub" : "Bitbucket";
       try {
+        setNow(`${pname}: listing repositories and branches…`);
         remote = await provider.listRepos();
+        logEvent(`${pname}: found ${remote.length} repositories`);
       } catch (e) {
         if (e instanceof SyncCancelled) throw e;
         run.errors.push(`${provider.platform}: listing repositories failed - ${(e as Error).message}`);
+        logEvent(`${pname}: listing repositories failed - ${(e as Error).message}`, "error");
         continue;
       }
       for (const r of remote) {
@@ -220,12 +228,26 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           : repo.lastSyncedAt && !opts.full
             ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY)
             : windowStart;
+        const position = `[${run.repos + run.errors.length + 1}/${run.total}]`;
+        logEvent(`${position} ${repo.fullName} · branch ${branch ?? "default"} · since ${since.toISOString().slice(0, 10)}${switched ? " · branch changed, replacing stored data" : ""}`);
+        setNow(`${repo.fullName}: starting`);
         try {
-          const items = await provider.fetchActivities(rr, since, branch);
+          const items = await provider.fetchActivities(rr, since, branch, (m) => {
+            setNow(`${repo.fullName}: ${m}`);
+            if (/^\d+ (commits|pull requests)/.test(m)) logEvent(`    ${m}`);
+          });
           if (switched) await store.deleteActivitiesForRepo(repo.id);
           const activities: Activity[] = [];
-          for (const it of items) {
+          const counts: Record<string, number> = {};
+          let shown = 0;
+          for (const [n, it] of items.entries()) {
+            if (n % 25 === 0) setNow(`${repo.fullName}: matching authors ${n}/${items.length}`);
             const identity = await resolver.resolve(provider.platform, it.actor);
+            counts[it.type] = (counts[it.type] ?? 0) + 1;
+            if (shown < 6 && (it.type === "commit" || it.type === "pr_merged")) {
+              shown++;
+              logEvent(`    ${it.type === "commit" ? "commit " + it.key.slice(7, 14) : "merged PR #" + it.key.slice(10)} · ${identity.displayName}${it.title ? ` · ${it.title.slice(0, 70)}` : ""}`);
+            }
             activities.push({
               id: `${repo.id}:${it.key}`,
               identityId: identity.id,
@@ -238,7 +260,9 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
               url: it.url,
             });
           }
+          setNow(`${repo.fullName}: saving ${activities.length} activities`);
           await store.upsertActivities(activities);
+          logEvent(`    saved ${activities.length}: ${Object.entries(counts).map(([t, c]) => `${c} ${t.replace("_", " ")}`).join(", ") || "nothing new"}`, "ok");
           await store.markRepositorySynced(repo.id, startedAt);
           await store.setRepositorySyncedBranch(repo.id, branch);
           // Remember how far back this repository's history is complete.
@@ -248,6 +272,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         } catch (e) {
           if (e instanceof SyncCancelled) throw e;
           run.errors.push(`${repo.fullName}: ${(e as Error).message}`);
+          logEvent(`    failed: ${(e as Error).message}`, "error");
         }
         await store.updateSyncRun(run.id, { repos: run.repos, activities: run.activities, total: run.total });
         await store.setSetting("coverage", coverage); // keep progress even if the run is stopped later
@@ -261,6 +286,8 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
   } finally {
     run.finishedAt = new Date();
     resetCancel();
+    setNow("");
+    logEvent(`Sync ${run.status}: ${run.repos} repositories, ${run.activities} activities${run.errors.length ? `, ${run.errors.length} problem(s)` : ""}`, run.status === "success" ? "ok" : run.status === "failed" ? "error" : "warn");
     await store.updateSyncRun(run.id, { status: run.status, finishedAt: run.finishedAt, repos: run.repos, activities: run.activities, errors: run.errors.slice(0, 50) });
     clearStatsCache();
     g.__devpulseSyncing = false;

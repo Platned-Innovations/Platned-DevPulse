@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SyncLog } from "@/components/SyncLog";
 import { SyncPoller } from "@/components/SyncPoller";
 import { Avatar, fmt, PLATFORM_LABEL, SetupNotice } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
@@ -134,6 +135,7 @@ async function Overview({ syncing }: { syncing: boolean }) {
           <b>All history</b> reads every commit and pull request ever made, which can take a long time and many API calls (GitHub allows 5,000 per hour per token); it is safe to run again if it stops. Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
         </p>
         {!gh && !bb && <p className="error-text">No platform is configured. Set GitHub and/or Bitbucket variables.</p>}
+        <SyncLog active={syncing || runs.some((r) => r.status === "running")} />
         {runs.length === 0 ? <p className="muted">No sync has run yet.</p> : (
           <div className="table-wrap">
             <table>

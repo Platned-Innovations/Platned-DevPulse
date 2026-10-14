@@ -39,5 +39,5 @@ export interface Provider {
   readonly platform: Platform;
   listRepos(): Promise<RemoteRepo[]>;
   /** Activities that happened at or after `since`. Must be safe to call repeatedly (ids are deterministic). */
-  fetchActivities(repo: RemoteRepo, since: Date, branch: string | null): Promise<RemoteActivity[]>;
+  fetchActivities(repo: RemoteRepo, since: Date, branch: string | null, log?: (message: string) => void): Promise<RemoteActivity[]>;
 }

@@ -101,7 +101,7 @@ export class BitbucketProvider implements Provider {
     return out;
   }
 
-  async fetchActivities(repo: RemoteRepo, since: Date, branch: string | null): Promise<RemoteActivity[]> {
+  async fetchActivities(repo: RemoteRepo, since: Date, branch: string | null, log: (message: string) => void = () => {}): Promise<RemoteActivity[]> {
     const base = `${this.cfg.apiUrl}/repositories/${repo.fullName}`;
     const out: RemoteActivity[] = [];
 
@@ -113,6 +113,7 @@ export class BitbucketProvider implements Provider {
       if (e instanceof HttpError && e.status === 404) return [] as any[]; // empty repo
       throw e;
     });
+    log(`${commits.length} commits found on ${branch ?? "the default branch"}`);
     for (const c of commits) {
       const at = new Date(c.date);
       if (at < since || (c.parents?.length ?? 0) > 1) continue;
@@ -138,8 +139,11 @@ export class BitbucketProvider implements Provider {
       (page) => page.length > 0 && page.every((p) => new Date(p.updated_on) < since),
     );
     const recent = prs.filter((p) => new Date(p.updated_on) >= since);
+    log(`${recent.length} pull requests to inspect`);
+    let inspected = 0;
 
     await mapLimit(recent, 4, async (pr) => {
+      log(`pull request #${pr.id} (${++inspected}/${recent.length}): ${String(pr.title ?? "").slice(0, 80)}`);
       const author = actorFromUser(pr.author);
       const title = String(pr.title ?? "").slice(0, 200);
       const url = pr.links?.html?.href ?? null;
