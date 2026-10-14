@@ -160,6 +160,7 @@ F1 allows about **60 CPU-minutes per day**, 1 GB of disk and 165 MB of outbound 
 
 ### Troubleshooting Azure startup
 
+- **`No production build found (.next)` with `> node scripts/start.cjs` in the log**: the deployed files are the source tree, not the bundle. Typical cause: a second workflow (such as the one Azure's Deployment Center generates, named like `main_<app>.yml`, whose step `zip release.zip ./*` skips dot-folders like `.next`) deploys to the same Web App. Delete that workflow, keep `azure-webapp.yml`, and redeploy. In **Deployment Center** set the source to GitHub Actions only through this workflow; the log must then show `> node start.cjs`.
 - **Check which package is running.** In the Log stream, the start line must read `> node start.cjs` (standalone bundle) or `> node scripts/start.cjs` (source tree). If it still says `> next start -H 0.0.0.0`, an **old** package is deployed: redeploy.
 - **Build the bundle on Linux** (the included GitHub workflow does this). A bundle built on Windows and zipped contains Windows-built files.
 - **"Quota exceeded" on the Web App** usually means a Free/Shared (F1/D1) plan: they have a daily CPU-minute limit and small disk, and a crash-looping container uses it up. Use Basic (B1) or higher; Always On, which the background sync needs, is not available on Free.
