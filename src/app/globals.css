@@ -89,7 +89,7 @@ footer { padding: 24px 0 40px; color: var(--text-3); font-size: 13px; text-align
 .stepper a, .stepper span.btn { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 4px 10px; font-size: 14px; }
 .stepper span.btn { opacity: 0.4; }
 .stepper .label { min-width: 150px; text-align: center; font-weight: 600; font-size: 14px; }
-select, input[type="text"], input[type="password"], input[type="number"] {
+select, input[type="text"], input[type="search"], input[type="password"], input[type="number"] {
   font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; padding: 6px 10px; max-width: 100%;
 }
@@ -222,3 +222,7 @@ body:has(.fill) main { padding-bottom: 12px; }
 .table-wrap.open thead th { position: static; box-shadow: none; }
 .table-wrap.open th, .table-wrap.open td { padding-left: 7px; padding-right: 7px; }
 .table-wrap.open td:first-child, .table-wrap.open th:first-child { padding-left: 4px; }
+
+/* Search and filter bar above tables */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 4px 0 12px; }
+.filter-search { min-width: 240px; flex: 1 1 240px; max-width: 360px; }

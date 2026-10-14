@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BranchPicker } from "@/components/BranchPicker";
+import { TableFilter } from "@/components/TableFilter";
 import { SyncLog } from "@/components/SyncLog";
 import { SyncPoller } from "@/components/SyncPoller";
 import { Avatar, fmt, PLATFORM_LABEL, SetupNotice } from "@/components/ui";
@@ -230,12 +231,28 @@ async function Developers() {
 
       <div className="card">
         <h2>All developers ({devs.length})</h2>
+        <TableFilter
+          tableId="developers-table"
+          noun="developers"
+          placeholder="Search name, username or email"
+          filters={[
+            { key: "platform", label: "Platform", options: [{ value: "github", label: "Has GitHub" }, { value: "bitbucket", label: "Has Bitbucket" }] },
+            { key: "accounts", label: "Accounts", options: [{ value: "merged", label: "Merged (2+)" }, { value: "single", label: "Single" }] },
+            { key: "visibility", label: "Visibility", options: [{ value: "visible", label: "Visible" }, { value: "hidden", label: "Hidden" }] },
+          ]}
+        />
         <div className="table-wrap open">
-          <table>
+          <table id="developers-table">
             <thead><tr><th>Developer</th><th>Linked accounts</th><th>Visibility</th></tr></thead>
             <tbody>
               {devs.map(({ developer: d, identities }) => (
-                <tr key={d.id}>
+                <tr
+                  key={d.id}
+                  data-search={[d.displayName, ...identities.flatMap((i) => [i.username, i.displayName, i.email ?? ""])].join(" ").toLowerCase()}
+                  data-platform={[...new Set(identities.map((i) => i.platform))].join(" ")}
+                  data-accounts={identities.length > 1 ? "merged" : "single"}
+                  data-visibility={d.hidden ? "hidden" : "visible"}
+                >
                   <td>
                     <div className="person">
                       <Avatar name={d.displayName} src={d.avatarUrl} />
@@ -295,12 +312,31 @@ async function Repos() {
       <h2>Repositories ({res.data.length})</h2>
       <p className="muted" style={{ marginTop: -6 }}>Disabled repositories are skipped by sync and excluded from all rankings.</p>
       {res.data.length === 0 ? <p className="muted">None discovered yet. Run a sync.</p> : (
+        <>
+        <TableFilter
+          tableId="repos-table"
+          noun="repositories"
+          placeholder="Search repository, branch or language"
+          filters={[
+            { key: "platform", label: "Platform", options: [{ value: "github", label: "GitHub" }, { value: "bitbucket", label: "Bitbucket" }] },
+            { key: "tracking", label: "Tracking", options: [{ value: "enabled", label: "Enabled" }, { value: "disabled", label: "Disabled" }] },
+            { key: "branch", label: "Branch", options: [{ value: "auto", label: "Automatic" }, { value: "custom", label: "Chosen by admin" }] },
+            { key: "access", label: "Access", options: [{ value: "private", label: "Private" }, { value: "public", label: "Public" }] },
+          ]}
+        />
         <div className="table-wrap">
-          <table>
+          <table id="repos-table">
             <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Branch read</th><th>Tracking</th><th>Manual sync</th></tr></thead>
             <tbody>
               {res.data.map((r) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  data-search={`${r.fullName} ${effectiveBranch(r) ?? ""} ${r.language ?? ""} ${r.platform}`.toLowerCase()}
+                  data-platform={r.platform}
+                  data-tracking={r.enabled ? "enabled" : "disabled"}
+                  data-branch={r.trackedBranch && r.branches.includes(r.trackedBranch) ? "custom" : "auto"}
+                  data-access={r.isPrivate ? "private" : "public"}
+                >
                   <td className="wrap-cell">
                     <b>{r.fullName}</b>{" "}
                     {r.isPrivate && <span className="chip">private</span>} {r.archived && <span className="chip">archived</span>}
@@ -352,6 +388,7 @@ async function Repos() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
