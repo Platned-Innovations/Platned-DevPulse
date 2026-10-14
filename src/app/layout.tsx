@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { appName } from "@/lib/config";
 import { Nav } from "@/components/Nav";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,15 @@ export function generateMetadata(): Metadata {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const name = appName();
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply a saved Light/Dark choice before first paint (no flash). Constant text, no user input. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'try{var t=localStorage.getItem("devpulse-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}',
+          }}
+        />
+      </head>
       <body>
         <header className="top">
           <div className="wrap">
@@ -27,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {name}
             </Link>
             <Nav />
+            <ThemeToggle />
           </div>
         </header>
         <main>

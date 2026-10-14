@@ -3,6 +3,9 @@ name: Deploy to Azure Web App
 # Required repository settings:
 #   secret   AZURE_WEBAPP_PUBLISH_PROFILE  (Web App > Overview > Get publish profile)
 #   variable AZURE_WEBAPP_NAME             (the Web App name)
+# Keep this the ONLY workflow that deploys to the Web App. A second one (for example the file Azure's
+# Deployment Center generates, which zips the repository root and skips the .next folder) overwrites this
+# bundle with the source tree, and the site then fails with "No production build found (.next)".
 # App settings (COMPANY_NAME, POSTGRES_URL / MONGODB_URI, ADMIN_*, ...) live in the Azure portal, not here.
 
 on:
@@ -22,6 +25,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build:standalone
+      - name: Check the bundle is complete
+        run: |
+          ls -A dist
+          test -f dist/start.cjs && test -f dist/server.js && test -d dist/.next/static && test -f dist/.deployment
+          test -z "$(find dist -maxdepth 1 -name '.env*')"
       - uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.AZURE_WEBAPP_NAME }}
