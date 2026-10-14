@@ -154,6 +154,7 @@ const COLS: Record<string, string> = {
   status: "status",
   repos: "repos",
   total: "total",
+  label: "label",
   activities: "activities",
   errors: "errors",
 };
