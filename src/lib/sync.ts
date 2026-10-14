@@ -248,7 +248,7 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
             ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY)
             : windowStart;
         const position = `[${run.repos + run.errors.length + 1}/${run.total}]`;
-        logEvent(`${position} ${repo.fullName} · branch ${branch ?? "default"} · since ${since.toISOString().slice(0, 10)}${switched ? " · branch changed, replacing stored data" : ""}`);
+        logEvent(`${position} ${repo.fullName} · branch ${branch ?? "default"} · ${since.getFullYear() < 1990 ? "all history" : `since ${since.toISOString().slice(0, 10)}`}${switched ? " · branch changed, replacing stored data" : ""}`);
         setNow(`${repo.fullName}: starting`);
         try {
           const items = await provider.fetchActivities(rr, since, branch, (m) => {

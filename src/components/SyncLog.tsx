@@ -76,9 +76,12 @@ export function SyncLog({ active }: { active: boolean }) {
 
   return (
     <div style={{ marginTop: 16 }}>
-      <div className="row spread" style={{ marginBottom: 6 }}>
-        <b>{running ? "Live activity" : "Last run log"}</b>
-        {running && now && <span className="muted" style={{ fontSize: 13 }}>▶ {now}</span>}
+      {/* Fixed-height, single-line header: a long "now" text is cut with an ellipsis instead of wrapping. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, height: 24, marginBottom: 6 }}>
+        <b style={{ flex: "none" }}>{running ? "Live activity" : "Last run log"}</b>
+        <span className="muted" title={now} style={{ flex: 1, minWidth: 0, fontSize: 13, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {running && now ? `▶ ${now}` : ""}
+        </span>
       </div>
       <div
         ref={box}
@@ -88,7 +91,7 @@ export function SyncLog({ active }: { active: boolean }) {
         }}
         role="log"
         aria-live="off"
-        style={{ height: 240, overflow: "auto", background: "var(--surface-2)", borderRadius: 8, padding: "8px 10px", font: "12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+        style={{ height: 240, overflow: "auto", overscrollBehavior: "contain", background: "var(--surface-2)", borderRadius: 8, padding: "8px 10px", font: "12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
       >
         {entries.map((e) => (
           <div key={e.seq} style={{ color: COLORS[e.level], whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
