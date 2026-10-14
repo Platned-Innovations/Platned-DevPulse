@@ -76,10 +76,54 @@ Tables, collections and indexes are created automatically on first start for bot
 
 HTTPS is terminated by Azure; the admin session cookie is `Secure`, `HttpOnly` and `SameSite=Lax`.
 
-## Tokens
+## Getting credentials
 
-- **GitHub**: a fine-grained token (or classic `repo` scope) with read access to contents and pull requests for the organisation's repositories.
-- **Bitbucket**: an app password / API token with *Repositories: Read* and *Pull requests: Read*, or a workspace access token.
+Keep tokens in `.env` / Azure app settings only. Never commit them or paste them into chats. Prefer a service or bot account over a personal one, so the data does not depend on one person's access.
+
+### GitHub token
+
+1. Open **GitHub > Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token** (direct link: https://github.com/settings/personal-access-tokens/new). For organisation repositories set **Resource owner** to the organisation.
+2. Choose **All repositories**, or only the ones to track.
+3. Under **Repository permissions** set **Read-only** for **Contents**, **Pull requests** and **Metadata** (Metadata is added automatically).
+4. Generate and copy the token (shown once). If the organisation requires approval for fine-grained tokens, an org owner must approve it.
+5. If fine-grained tokens are blocked, use a classic token with the `repo` scope and authorise it for SSO when the organisation uses SSO.
+
+```
+GITHUB_TOKEN=<token>
+GITHUB_ORGS=<org-login>[,<another-org>]
+# GitHub Enterprise Server only: GITHUB_API_URL=https://<host>/api/v3
+```
+
+### Bitbucket Cloud token
+
+**Option A: Atlassian API token (tied to a user account)**
+
+1. Sign in as the account that will own the token and open https://id.atlassian.com/manage-profile/security/api-tokens.
+2. Click **Create API token with scopes**, choose **Bitbucket**, and select these scopes: `read:repository:bitbucket`, `read:pullrequest:bitbucket`, `read:workspace:bitbucket`, `read:user:bitbucket`.
+3. Copy the token (shown once). The account must have access to the repositories to track.
+
+```
+BITBUCKET_WORKSPACES=<workspace-slug>
+BITBUCKET_USERNAME=<Atlassian account email>
+BITBUCKET_APP_PASSWORD=<API token>     # BITBUCKET_API_TOKEN is accepted as an alias
+```
+
+The workspace slug is the part of the URL after `bitbucket.org/`.
+
+**Option B: workspace access token (not tied to a person)**
+
+Bitbucket > **Workspace settings > Security > Access tokens > Create**, with Read for Repositories and Pull requests (may require a paid plan).
+
+```
+BITBUCKET_WORKSPACES=<workspace-slug>
+BITBUCKET_ACCESS_TOKEN=<token>
+```
+
+`admin.atlassian.com` (the organisation admin portal) does not create these tokens; it only lets admins review or restrict them.
+
+### Verify
+
+Start the app and use **Admin > Overview & sync > Sync now**. The sync history shows errors: 401 usually means a wrong token or username, 403/404 means missing scopes or no access to that repository.
 
 ## Notes and limits
 
