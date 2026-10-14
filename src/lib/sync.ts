@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { configuredPlatforms, syncConfig } from "./config";
 import { getStore, type Store } from "./db";
+import { effectiveBranch } from "./branches";
 import { clearStatsCache } from "./stats";
 import type { Provider, RemoteActor, RemoteRepo } from "./providers/types";
 import type { Activity, Developer, Identity, Platform, Repository, SyncRun } from "./types";
@@ -179,6 +180,8 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           id: `${provider.platform}:${r.externalId}`,
           platform: provider.platform,
           ...r,
+          trackedBranch: null,
+          syncedBranch: null,
           enabled: true,
           lastSyncedAt: null,
         };
@@ -202,9 +205,20 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
         if (!rr) continue; // no longer visible to the token
         const startedAt = new Date();
         // Re-read a 2-day overlap so late-arriving reviews/merges are not missed.
-        const since = repo.lastSyncedAt && !opts.full ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY) : new Date(Date.now() - lookbackDays * DAY);
+        const branch = effectiveBranch(repo);
+        // Activity read from a different branch before (or, for older data, from the default branch)
+        // must be replaced, otherwise commits of the old branch would stay in the totals.
+        const switched = repo.syncedBranch != null ? repo.syncedBranch !== branch : repo.lastSyncedAt != null && branch !== repo.defaultBranch;
+        const full = !!opts.full || switched || !repo.lastSyncedAt;
+        const windowStart = new Date(Date.now() - lookbackDays * DAY);
+        const since = switched
+          ? new Date(Math.min(windowStart.getTime(), coverage[repo.id] ? Date.parse(coverage[repo.id]) : Infinity))
+          : repo.lastSyncedAt && !opts.full
+            ? new Date(repo.lastSyncedAt.getTime() - 2 * DAY)
+            : windowStart;
         try {
-          const items = await provider.fetchActivities(rr, since);
+          const items = await provider.fetchActivities(rr, since, branch);
+          if (switched) await store.deleteActivitiesForRepo(repo.id);
           const activities: Activity[] = [];
           for (const it of items) {
             const identity = await resolver.resolve(provider.platform, it.actor);
@@ -222,8 +236,9 @@ export async function runSync(trigger: SyncRun["trigger"], opts: SyncOptions = {
           }
           await store.upsertActivities(activities);
           await store.markRepositorySynced(repo.id, startedAt);
+          await store.setRepositorySyncedBranch(repo.id, branch);
           // Remember how far back this repository's history is complete.
-          if ((!repo.lastSyncedAt || opts.full) && (!coverage[repo.id] || since.toISOString() < coverage[repo.id])) coverage[repo.id] = since.toISOString();
+          if (full && (!coverage[repo.id] || since.toISOString() < coverage[repo.id])) coverage[repo.id] = since.toISOString();
           run.activities += activities.length;
           run.repos += 1;
         } catch (e) {

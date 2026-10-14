@@ -10,6 +10,8 @@ export interface RemoteRepo {
   language: string | null;
   isPrivate: boolean;
   archived: boolean;
+  defaultBranch: string | null;
+  branches: string[];
 }
 
 export interface RemoteActor {
@@ -37,5 +39,5 @@ export interface Provider {
   readonly platform: Platform;
   listRepos(): Promise<RemoteRepo[]>;
   /** Activities that happened at or after `since`. Must be safe to call repeatedly (ids are deterministic). */
-  fetchActivities(repo: RemoteRepo, since: Date): Promise<RemoteActivity[]>;
+  fetchActivities(repo: RemoteRepo, since: Date, branch: string | null): Promise<RemoteActivity[]>;
 }

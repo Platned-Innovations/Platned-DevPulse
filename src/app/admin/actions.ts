@@ -130,6 +130,26 @@ export async function setRepoEnabledAction(form: FormData) {
   back("repos");
 }
 
+/** Chooses which branch of a repository is read ("" = automatic). The next sync replaces data read from the old branch. */
+export async function setBranchAction(form: FormData) {
+  await requireAdmin();
+  const store = await getStore();
+  const id = String(form.get("id") ?? "");
+  const branch = String(form.get("branch") ?? "");
+  const repo = (await store.listRepositories()).find((r) => r.id === id);
+  if (!repo) back("repos", "Repository not found.", true);
+  else if (branch && !repo.branches.includes(branch)) back("repos", "That branch does not exist. Run Discover repositories to refresh branches.", true);
+  else {
+    await store.setRepositoryBranch(id, branch || null);
+    clearStatsCache();
+    revalidatePath("/", "layout");
+    if (repo.enabled && !isSyncing()) {
+      void runSync("manual", { repoIds: [id], full: true }).catch((e) => console.error("[devpulse] repo sync failed:", e));
+    }
+    back("repos", "Branch saved. Re-reading the repository from that branch now.");
+  }
+}
+
 export async function saveWeightsAction(form: FormData) {
   await requireAdmin();
   const weights: Record<string, number> = {};

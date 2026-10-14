@@ -70,19 +70,30 @@ export class GitHubProvider implements Provider {
           language: r.language ?? null,
           isPrivate: !!r.private,
           archived: !!r.archived,
+          defaultBranch: r.default_branch ?? null,
+          branches: [],
         });
       }
     }
+    // Branch names let the admin (and the auto-pick) choose which branch to read.
+    await mapLimit(out, 6, async (r) => {
+      try {
+        r.branches = (await this.paged<any>(`${this.cfg.apiUrl}/repos/${r.fullName}/branches?per_page=100`)).map((b) => b.name as string);
+      } catch {
+        r.branches = r.defaultBranch ? [r.defaultBranch] : [];
+      }
+    });
     return out;
   }
 
-  async fetchActivities(repo: RemoteRepo, since: Date): Promise<RemoteActivity[]> {
+  async fetchActivities(repo: RemoteRepo, since: Date, branch: string | null): Promise<RemoteActivity[]> {
     const base = `${this.cfg.apiUrl}/repos/${repo.fullName}`;
     const out: RemoteActivity[] = [];
     const sinceIso = since.toISOString();
 
-    // Commits (merge commits excluded: they are not authored work).
-    const commits = await this.paged(`${base}/commits?per_page=100&since=${sinceIso}`).catch((e) => {
+    // Commits on the tracked branch (merge commits excluded: they are not authored work).
+    const branchParam = branch ? `&sha=${encodeURIComponent(branch)}` : "";
+    const commits = await this.paged(`${base}/commits?per_page=100&since=${sinceIso}${branchParam}`).catch((e) => {
       // 409 = empty repository
       if (e instanceof HttpError && e.status === 409) return [] as any[];
       throw e;
@@ -120,9 +131,10 @@ export class GitHubProvider implements Provider {
       });
     }
 
-    // Pull requests, newest-updated first; stop once a page is entirely older than the window.
+    // Pull requests into the tracked branch, newest-updated first; stop once a page is entirely older than the window.
+    const baseParam = branch ? `&base=${encodeURIComponent(branch)}` : "";
     const prs = await this.paged<any>(
-      `${base}/pulls?state=all&sort=updated&direction=desc&per_page=100`,
+      `${base}/pulls?state=all&sort=updated&direction=desc&per_page=100${baseParam}`,
       (page) => page.length > 0 && page.every((p) => new Date(p.updated_at) < since),
     );
     const recent = prs.filter((p) => new Date(p.updated_at) >= since);
@@ -158,11 +170,14 @@ export class GitHubProvider implements Provider {
       }
     });
 
-    // Inline review comments across the repository.
+    // Inline review comments, only on the pull requests above.
+    const prNumbers = new Set(recent.map((p) => p.number as number));
     const comments = await this.paged<any>(`${base}/pulls/comments?per_page=100&sort=created&direction=desc&since=${sinceIso}`);
     for (const c of comments) {
       const a = actorFromUser(c.user);
       if (!a || new Date(c.created_at) < since) continue;
+      const prNumber = Number(/\/pulls\/(\d+)$/.exec(c.pull_request_url ?? "")?.[1]);
+      if (branch && !prNumbers.has(prNumber)) continue;
       out.push({ key: `comment:${c.id}`, actor: a, type: "comment", occurredAt: new Date(c.created_at), additions: 0, deletions: 0, title: null, url: c.html_url ?? null });
     }
     return out;

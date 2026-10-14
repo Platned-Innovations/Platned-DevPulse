@@ -16,6 +16,15 @@ The app is branded **`<COMPANY_NAME> DevPulse`** (set `COMPANY_NAME`; without it
 - **Admin-only login**: no end-user accounts. The leaderboard is open; the admin area manages sync, merging, hiding bots/alumni, enabling repositories and the scoring weights.
 - **Automatic sync**: a background schedule plus a manual "Sync now" in the admin area.
 
+### Which branch is read
+
+Work is usually merged into a development branch, while the default branch (often `main`/`PROD`) only receives release merges by a few leads. DevPulse therefore reads, **per repository**:
+
+- **commits** on the chosen branch, and
+- **pull requests that target that branch** (with their reviews and review comments).
+
+By default the branch is picked automatically: `develop`, `dev` or `development` if one exists (case-insensitive), otherwise `main`, `master`, `prod` or `production`, otherwise the repository's default branch. Change the order with `BRANCH_PRIORITY` (comma-separated). In **Admin > Repositories** the **Branch read** column lets you choose any branch instead; saving re-reads that repository from the new branch and **replaces** what was stored from the old one. Branch lists refresh on every sync (or with **Discover repositories**).
+
 ### Scoring
 
 Default points: commit 1, PR opened 3, PR merged 5, review 4, review comment 1. Editable by the admin (applies to history immediately). Merge commits, bot accounts and self-reviews are ignored.

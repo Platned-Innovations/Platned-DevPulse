@@ -85,19 +85,29 @@ export class BitbucketProvider implements Provider {
           language: r.language || null,
           isPrivate: !!r.is_private,
           archived: false,
+          defaultBranch: r.mainbranch?.name ?? null,
+          branches: [],
         });
       }
     }
+    // Branch names let the admin (and the auto-pick) choose which branch to read.
+    await mapLimit(out, 6, async (r) => {
+      try {
+        r.branches = (await this.paged(`${this.cfg.apiUrl}/repositories/${r.fullName}/refs/branches?pagelen=100`)).map((b) => b.name as string);
+      } catch {
+        r.branches = r.defaultBranch ? [r.defaultBranch] : [];
+      }
+    });
     return out;
   }
 
-  async fetchActivities(repo: RemoteRepo, since: Date): Promise<RemoteActivity[]> {
+  async fetchActivities(repo: RemoteRepo, since: Date, branch: string | null): Promise<RemoteActivity[]> {
     const base = `${this.cfg.apiUrl}/repositories/${repo.fullName}`;
     const out: RemoteActivity[] = [];
 
     // Commits arrive newest first; stop when the whole page is older than the window.
     const commits = await this.paged(
-      `${base}/commits?pagelen=100`,
+      `${base}/commits?pagelen=100${branch ? `&include=${encodeURIComponent(branch)}` : ""}`,
       (page) => page.length > 0 && page.every((c) => new Date(c.date) < since),
     ).catch((e) => {
       if (e instanceof HttpError && e.status === 404) return [] as any[]; // empty repo
@@ -120,7 +130,9 @@ export class BitbucketProvider implements Provider {
       });
     }
 
-    const q = encodeURIComponent("state != \"SUPERSEDED\"");
+    // Only pull requests whose destination is the tracked branch.
+    const quoted = branch ? branch.replace(/\\/g, "\\\\").replace(/"/g, '\\"') : "";
+    const q = encodeURIComponent(`state != "SUPERSEDED"${branch ? ` AND destination.branch.name = "${quoted}"` : ""}`);
     const prs = await this.paged(
       `${base}/pullrequests?state=OPEN&state=MERGED&state=DECLINED&sort=-updated_on&pagelen=50&q=${q}`,
       (page) => page.length > 0 && page.every((p) => new Date(p.updated_on) < since),

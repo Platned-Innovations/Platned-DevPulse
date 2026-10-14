@@ -7,10 +7,11 @@ import { getStore } from "@/lib/db";
 import { listDevelopersWithIdentities, suggestMerges } from "@/lib/identities";
 import { safe } from "@/lib/safe";
 import { ACTIVITY_LABELS } from "@/lib/scoring";
+import { autoBranch, effectiveBranch } from "@/lib/branches";
 import { getWeights } from "@/lib/stats";
 import { isSyncing } from "@/lib/sync";
 import { ACTIVITY_TYPES } from "@/lib/types";
-import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setHiddenAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
+import { logoutAction, mergeAction, renameDeveloperAction, saveWeightsAction, setBranchAction, setHiddenAction, setPrimaryAction, setRepoEnabledAction, startSyncAction, syncRepoAction, unlinkAction } from "./actions";
 
 export const metadata = { title: "Admin" };
 
@@ -274,13 +275,28 @@ async function Repos() {
       {res.data.length === 0 ? <p className="muted">None discovered yet. Run a sync.</p> : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Tracking</th><th>Manual sync</th></tr></thead>
+            <thead><tr><th>Repository</th><th>Platform</th><th>Last synced</th><th>Branch read</th><th>Tracking</th><th>Manual sync</th></tr></thead>
             <tbody>
               {res.data.map((r) => (
                 <tr key={r.id}>
                   <td><b>{r.fullName}</b> {r.isPrivate && <span className="chip">private</span>} {r.archived && <span className="chip">archived</span>}</td>
                   <td><span className={`dot ${r.platform}`} /> {PLATFORM_LABEL[r.platform]}</td>
                   <td className="muted num">{r.lastSyncedAt ? r.lastSyncedAt.toISOString().slice(0, 16).replace("T", " ") : "never"}</td>
+                  <td>
+                    {r.branches.length === 0 ? (
+                      <span className="faint" title="Run Discover repositories to load the branch list">{r.defaultBranch ?? "unknown"} (default)</span>
+                    ) : (
+                      <form action={setBranchAction} className="row" style={{ gap: 6 }}>
+                        <input type="hidden" name="id" value={r.id} />
+                        <select name="branch" defaultValue={r.trackedBranch && r.branches.includes(r.trackedBranch) ? r.trackedBranch : ""} aria-label="Branch to read">
+                          <option value="">Automatic ({autoBranch(r) ?? "default"})</option>
+                          {r.branches.map((b) => <option key={b} value={b}>{b}{b === r.defaultBranch ? " (default)" : ""}</option>)}
+                        </select>
+                        <button title="Commits are read from this branch, and pull requests that target it are counted">Save</button>
+                      </form>
+                    )}
+                    {r.branches.length > 0 && <div className="faint" style={{ fontSize: 12 }}>reading: <b>{effectiveBranch(r) ?? "default"}</b></div>}
+                  </td>
                   <td>
                     <form action={setRepoEnabledAction}>
                       <input type="hidden" name="id" value={r.id} />

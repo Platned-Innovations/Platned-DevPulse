@@ -79,21 +79,36 @@ export class MongoStore implements Store {
   }
 
   async listRepositories() {
-    return (await this.col("repositories").find().sort({ fullName: 1 }).toArray()).map((d) => out<Repository>(d));
+    return (await this.col("repositories").find().sort({ fullName: 1 }).toArray()).map((d) => ({
+      ...out<Repository>(d),
+      defaultBranch: d.defaultBranch ?? null,
+      branches: d.branches ?? [],
+      trackedBranch: d.trackedBranch ?? null,
+      syncedBranch: d.syncedBranch ?? null,
+    }));
   }
   async upsertRepository(r: Repository) {
-    const { enabled, lastSyncedAt, ...rest } = into(r);
-    // Preserve admin-controlled `enabled` and the sync cursor on existing docs.
+    const { enabled, lastSyncedAt, trackedBranch, syncedBranch, ...rest } = into(r);
+    // Preserve admin-controlled settings and the sync cursor on existing docs.
     await this.col("repositories").updateOne(
       { _id: r.id },
-      { $set: rest, $setOnInsert: { enabled, lastSyncedAt } },
+      { $set: rest, $setOnInsert: { enabled, lastSyncedAt, trackedBranch, syncedBranch } },
       { upsert: true },
     );
   }
   async setRepositoryEnabled(id: string, enabled: boolean) {
     await this.col("repositories").updateOne({ _id: id }, { $set: { enabled } });
   }
-  async markRepositorySynced(id: string, at: Date) {
+  async setRepositoryBranch(id: string, trackedBranch: string | null) {
+    await this.col("repositories").updateOne({ _id: id }, { $set: { trackedBranch } });
+  }
+  async setRepositorySyncedBranch(id: string, branch: string | null) {
+    await this.col("repositories").updateOne({ _id: id }, { $set: { syncedBranch: branch } });
+  }
+  async deleteActivitiesForRepo(repoId: string) {
+    await this.col("activities").deleteMany({ repoId });
+  }
+  async markRepositorySynced(id: string, at: Date | null) {
     await this.col("repositories").updateOne({ _id: id }, { $set: { lastSyncedAt: at } });
   }
 
