@@ -38,11 +38,14 @@ export async function logoutAction() {
 /** Starts a background sync. mode: incremental (default) | full (re-read the look-back window) | discover (refresh repo list). */
 export async function startSyncAction(form: FormData) {
   await requireAdmin();
-  const mode = String(form.get("mode") ?? "incremental");
+  // The Sync control sends one "scope" value: "incremental" | "full:<days>" | "full:all".
+  // "mode" is still used by the Discover button.
+  const scope = String(form.get("scope") ?? "");
+  const mode = scope.startsWith("full:") ? "full" : String(form.get("mode") ?? "incremental");
   const opts: SyncOptions = {
     full: mode === "full",
     discoverOnly: mode === "discover",
-    lookbackDays: parseDays(form.get("days")),
+    lookbackDays: scope.startsWith("full:") ? parseDays(scope.slice(5)) : parseDays(form.get("days")),
   };
   if (isSyncing()) back("overview", "A sync is already running.", true);
   // Runs in the background; the admin page polls for progress.

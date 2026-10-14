@@ -72,6 +72,21 @@ function WindowOptions({ current }: { current: number }) {
   );
 }
 
+/** Choices for the Sync button: quick incremental, or re-read a window of history. */
+function ScopeOptions({ current }: { current: number }) {
+  const days = [...new Set([30, 90, 180, 365, 730, 1825, current])].filter((d) => d < 36_500).sort((a, b) => a - b);
+  const label = (d: number) => (d >= 365 && d % 365 === 0 ? `${d / 365} year${d === 365 ? "" : "s"}` : `${d} days`);
+  return (
+    <>
+      <option value="incremental">New since last sync (quick)</option>
+      {days.map((d) => (
+        <option key={d} value={`full:${d}`}>Re-read last {label(d)}</option>
+      ))}
+      <option value="full:all">Re-read all history</option>
+    </>
+  );
+}
+
 async function Overview({ syncing }: { syncing: boolean }) {
   const res = await safe(async () => (await getStore()).listSyncRuns(10));
   if (!res.ok) return <SetupNotice error={res.error} />;
@@ -102,38 +117,29 @@ async function Overview({ syncing }: { syncing: boolean }) {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="row spread">
-          <h2 style={{ margin: 0 }}>Sync</h2>
-          <div className="row" style={{ gap: 8 }}>
-            <form action={startSyncAction}>
-              <input type="hidden" name="mode" value="incremental" />
-              <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
-            </form>
-            {(syncing || runs.some((r) => r.status === "running")) && (
-              <form action={stopSyncAction}>
-                <button className="danger" disabled={isCancelRequested()} title="Halts at the next step; finished repositories keep their data">
-                  {isCancelRequested() ? "Stopping…" : "Stop"}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-        <div className="row" style={{ marginTop: 12 }}>
-          <form action={startSyncAction} className="row" style={{ gap: 6 }}>
-            <input type="hidden" name="mode" value="full" />
-            <label className="muted" htmlFor="full-days">Full re-sync, last</label>
-            <select id="full-days" name="days" defaultValue={String(lookbackDays)}>
-              <WindowOptions current={lookbackDays} />
+        <h2 style={{ marginBottom: 10 }}>Sync</h2>
+        <div className="row" style={{ gap: 10 }}>
+          <form action={startSyncAction} className="row" style={{ gap: 8 }}>
+            <label className="muted" htmlFor="sync-scope">Read</label>
+            <select id="sync-scope" name="scope" defaultValue="incremental" disabled={syncing} title="What this sync reads">
+              <ScopeOptions current={lookbackDays} />
             </select>
-            <button disabled={syncing || (!gh && !bb)} title="Re-reads the whole window for every enabled repository (safe: no duplicates)">Run</button>
+            <button className="primary" disabled={syncing || (!gh && !bb)}>{syncing ? "Sync running…" : "Sync now"}</button>
           </form>
+          {(syncing || runs.some((r) => r.status === "running")) && (
+            <form action={stopSyncAction}>
+              <button className="danger" disabled={isCancelRequested()} title="Halts at the next step; finished repositories keep their data">
+                {isCancelRequested() ? "Stopping…" : "Stop"}
+              </button>
+            </form>
+          )}
           <form action={startSyncAction}>
             <input type="hidden" name="mode" value="discover" />
-            <button disabled={syncing || (!gh && !bb)} title="Looks for new repositories without reading their activity">Discover repositories</button>
+            <button disabled={syncing || (!gh && !bb)} title="Looks for new repositories and branches without reading their activity">Discover repositories</button>
           </form>
         </div>
         <p className="faint" style={{ fontSize: 13 }}>
-          <b>All history</b> reads every commit and pull request ever made, which can take a long time and many API calls (GitHub allows 5,000 per hour per token); it is safe to run again if it stops. Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. <b>Sync now</b> reads what is new since each repository's last sync; <b>Full re-sync</b> re-reads the chosen window; individual repositories can be synced from the Repositories tab.
+          <b>New since last sync</b> is the quick option. <b>Re-read last …</b> reads that much history again for every enabled repository (safe, no duplicates); <b>All history</b> reads everything ever made, which can take long and use many API calls (GitHub allows 5,000 per hour per token). Automatic sync {intervalMinutes > 0 ? <>runs every {intervalMinutes} min</> : "is off"}. Single repositories can be synced from the Repositories tab.
         </p>
         {!gh && !bb && <p className="error-text">No platform is configured. Set GitHub and/or Bitbucket variables.</p>}
         <SyncLog active={syncing || runs.some((r) => r.status === "running")} />

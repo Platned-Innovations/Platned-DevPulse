@@ -47,7 +47,7 @@ On every start the app connects to the database and creates/updates the schema. 
 | Command | What it does |
 | --- | --- |
 | `npm run migrate` | Creates/updates the schema only (idempotent). |
-| "Sync now" / "Stop" (admin) | Pulls real data from the configured platforms; Stop halts a running sync at its next step (finished repositories keep their data). |
+| "Sync now" with its "Read" choice (new since last sync, or re-read 30 days up to 5 years or all history) and "Stop" (admin) | Pulls real data from the configured platforms; Stop halts a running sync at its next step (finished repositories keep their data). |
 
 ## Configuration
 
