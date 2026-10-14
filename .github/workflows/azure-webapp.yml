@@ -17,6 +17,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Check deployment settings
+        env:
+          APP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+          PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        run: |
+          if [ -z "$APP_NAME" ]; then
+            echo "::error::Repository VARIABLE AZURE_WEBAPP_NAME is empty or missing (Settings > Secrets and variables > Actions > Variables)."
+            exit 1
+          fi
+          if [ -z "$PROFILE" ]; then
+            echo "::error::Repository SECRET AZURE_WEBAPP_PUBLISH_PROFILE is empty or missing. It must be a repository secret (Secrets tab, not Variables), spelled exactly like this, in the repository that runs this workflow."
+            exit 1
+          fi
+          case "$PROFILE" in
+            *"<publishData>"*) ;;
+            *) echo "::error::AZURE_WEBAPP_PUBLISH_PROFILE does not look like a publish profile. Paste the whole XML from Get publish profile, starting with <publishData>."; exit 1 ;;
+          esac
+          echo "Deployment settings found for app '$APP_NAME'."
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
