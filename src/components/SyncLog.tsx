@@ -76,12 +76,17 @@ export function SyncLog({ active }: { active: boolean }) {
 
   return (
     <div style={{ marginTop: 16 }}>
-      {/* Fixed-height, single-line header: a long "now" text is cut with an ellipsis instead of wrapping. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, height: 24, marginBottom: 6 }}>
-        <b style={{ flex: "none" }}>{running ? "Live activity" : "Last run log"}</b>
-        <span className="muted" title={now} style={{ flex: 1, minWidth: 0, fontSize: 13, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {running && now ? `▶ ${now}` : ""}
-        </span>
+      <div style={{ height: 24, display: "flex", alignItems: "center", gap: 8 }}>
+        <b>{running ? "Live activity" : "Last run log"}</b>
+        {running && <span className="faint" style={{ fontSize: 12 }}>● running</span>}
+      </div>
+      {/* The current step has its own fixed line, left-aligned, so changing text never shifts anything. */}
+      <div
+        className="muted"
+        title={now}
+        style={{ height: 20, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", font: "12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+      >
+        {running && now ? `▶ ${now}` : " "}
       </div>
       <div
         ref={box}
