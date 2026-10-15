@@ -72,13 +72,16 @@ export function SyncLog({ active }: { active: boolean }) {
     if (stick.current && box.current) box.current.scrollTop = box.current.scrollHeight;
   }, [entries]);
 
-  if (!running && entries.length === 0) return null;
+  // The page can know a sync is running (from its run history) even when this server instance has no in-memory log
+  // for it (restart, hot reload, another instance), so `active` keeps the panel visible.
+  const live = running || active;
+  if (!live && entries.length === 0) return null;
 
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ height: 24, display: "flex", alignItems: "center", gap: 8 }}>
-        <b>{running ? "Live activity" : "Last run log"}</b>
-        {running && <span className="faint" style={{ fontSize: 12 }}>● running</span>}
+        <b>{live ? "Live activity" : "Last run log"}</b>
+        {live && <span className="faint" style={{ fontSize: 12 }}>● running</span>}
       </div>
       {/* The current step has its own fixed line, left-aligned, so changing text never shifts anything. */}
       <div
@@ -86,7 +89,7 @@ export function SyncLog({ active }: { active: boolean }) {
         title={now}
         style={{ height: 20, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", font: "12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
       >
-        {running && now ? `▶ ${now}` : " "}
+        {live && now ? `▶ ${now}` : " "}
       </div>
       <div
         ref={box}
