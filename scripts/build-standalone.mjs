@@ -16,6 +16,14 @@ rmSync("dist", { recursive: true, force: true });
 // survive a zip upload (and a local build makes them absolute paths), so copy the real folders instead.
 cpSync(".next/standalone", "dist", { recursive: true, dereference: true });
 cpSync(".next/static", "dist/.next/static", { recursive: true });
+// Next's file tracing leaves instrumentation.js (and the chunks it loads) out of the standalone output, so the
+// deployed server never ran register(): no database bootstrap and no background sync. Merge the built server
+// folder over the traced one.
+cpSync(".next/server", "dist/.next/server", { recursive: true, dereference: true });
+if (existsSync("instrumentation.ts") && !existsSync("dist/.next/server/instrumentation.js")) {
+  console.error("dist/.next/server/instrumentation.js is missing: the background sync would not start.");
+  process.exit(1);
+}
 if (existsSync("public")) cpSync("public", "dist/public", { recursive: true });
 
 // Next copies local .env files into the standalone output. They hold secrets and must never be deployed:
